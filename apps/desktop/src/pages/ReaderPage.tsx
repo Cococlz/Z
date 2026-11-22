@@ -16,6 +16,7 @@ import {
   Languages,
   X,
   FileSearch,
+  GripHorizontal,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 
@@ -98,6 +99,15 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     isStreaming: false,
   })
   const [copiedHighlight, setCopiedHighlight] = useState(false)
+  const [copiedResult, setCopiedResult] = useState(false)
+
+  // 划词 AI 弹窗拖拽定位与状态
+  const [cardPos, setCardPos] = useState<{ x: number; y: number }>(() => ({
+    x: 40,
+    y: typeof window !== 'undefined' ? Math.max(80, window.innerHeight - 440) : 320,
+  }))
+  const isDraggingRef = useRef(false)
+  const dragOffsetRef = useRef({ x: 0, y: 0 })
 
   const leftContentRef = useRef<HTMLDivElement>(null)
 
@@ -178,6 +188,54 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       window.removeEventListener('mousedown', handleGlobalPointerDown)
     }
   }, [])
+
+  // 鼠标拖拽 AI 结果卡片全局监听（边界保护）
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (!isDraggingRef.current) return
+      const cardEl = document.getElementById('zhiyue-inline-card')
+      const cardWidth = cardEl ? cardEl.offsetWidth : 440
+      const cardHeight = cardEl ? cardEl.offsetHeight : 340
+
+      const newX = Math.max(12, Math.min(window.innerWidth - cardWidth - 12, e.clientX - dragOffsetRef.current.x))
+      const newY = Math.max(12, Math.min(window.innerHeight - cardHeight - 12, e.clientY - dragOffsetRef.current.y))
+      setCardPos({ x: newX, y: newY })
+    }
+
+    const handleGlobalMouseUp = () => {
+      isDraggingRef.current = false
+    }
+
+    window.addEventListener('mousemove', handleGlobalMouseMove)
+    window.addEventListener('mouseup', handleGlobalMouseUp)
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove)
+      window.removeEventListener('mouseup', handleGlobalMouseUp)
+    }
+  }, [])
+
+  // 开始拖拽 AI 结果卡片
+  const handleCardDragStart = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('button')) return
+    e.preventDefault()
+    isDraggingRef.current = true
+    const cardEl = document.getElementById('zhiyue-inline-card')
+    if (cardEl) {
+      const rect = cardEl.getBoundingClientRect()
+      dragOffsetRef.current = {
+        x: e.clientX - rect.left,
+        y: e.clientY - rect.top,
+      }
+    }
+  }
+
+  // 复制 AI 结果卡片内容
+  const handleCopyResult = () => {
+    if (!inlineResult.content) return
+    navigator.clipboard.writeText(inlineResult.content)
+    setCopiedResult(true)
+    setTimeout(() => setCopiedResult(false), 1500)
+  }
 
   // 划词监听处理（延时 20ms 以确保浏览器选区 Rect 就绪）
   const handleMouseUp = () => {
@@ -664,26 +722,49 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         </div>
       )}
 
-      {/* 划词 AI 解答浮窗抽屉 (iOS Modal / Floating Card) */}
+      {/* 划词 AI 解答浮窗抽屉 (iOS Modal / Floating Card - 支持自由拖拽移动) */}
       {inlineResult.show && (
         <div
           id="zhiyue-inline-card"
-          className="absolute bottom-6 left-10 z-50 max-w-md w-full bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3"
+          style={{ left: `${cardPos.x}px`, top: `${cardPos.y}px` }}
+          className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3"
         >
-          <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
+          {/* 顶部可拖拽操作栏 */}
+          <div
+            onMouseDown={handleCardDragStart}
+            className="flex items-center justify-between pb-2 border-b border-zinc-100 cursor-grab active:cursor-grabbing select-none"
+            title="按住此处可自由拖拽位置"
+          >
             <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800">
               <Sparkles className="w-4 h-4 text-purple-600" />
               <span>{inlineResult.title}</span>
             </div>
-            <button
-              onClick={() => setInlineResult((prev) => ({ ...prev, show: false }))}
-              className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
+
+            {/* 拖拽指示条 */}
+            <div className="flex items-center space-x-1 text-zinc-300 hover:text-zinc-500 transition-colors">
+              <GripHorizontal className="w-4 h-4" />
+            </div>
+
+            {/* 右侧操作按钮组：复制结果 & 关闭 */}
+            <div className="flex items-center space-x-1.5">
+              <button
+                onClick={handleCopyResult}
+                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
+                title="复制 AI 解答内容"
+              >
+                {copiedResult ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+              </button>
+              <button
+                onClick={() => setInlineResult((prev) => ({ ...prev, show: false }))}
+                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
+                title="关闭浮窗"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
           </div>
 
-          <div className="text-xs text-zinc-700 leading-relaxed max-h-56 overflow-y-auto font-sans prose prose-xs">
+          <div className="text-xs text-zinc-700 leading-relaxed max-h-80 overflow-y-auto font-sans prose prose-xs select-text cursor-text">
             {inlineResult.content ? (
               <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
             ) : (
