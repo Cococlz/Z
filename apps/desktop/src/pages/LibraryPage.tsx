@@ -148,7 +148,9 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
   const [search, setSearch] = useState('')
 
   useEffect(() => {
-    fetchDocuments()
+    if (backendUrl) {
+      fetchDocuments()
+    }
     // Poll for status updates of pending/parsing docs
     const interval = setInterval(() => {
       const hasInProgress = useDocStore
@@ -157,7 +159,7 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
       if (hasInProgress) fetchDocuments()
     }, 2000)
     return () => clearInterval(interval)
-  }, [])
+  }, [backendUrl])
 
   async function handleFileUpload(files: FileList | null) {
     if (!files || files.length === 0) return

@@ -31,42 +31,46 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function App() {
   const [page, setPage] = useState<Page>('library')
-  const [backendUrl, setBackendUrl] = useState<string | null>(null)
-  const [backendReady, setBackendReady] = useState(false)
+
+  // 1. 同步尝试从 URL query 获取（零延迟）
+  const queryParams = new URLSearchParams(window.location.search)
+  const initialUrl = queryParams.get('backendUrl')
+
+  const [backendUrl, setBackendUrl] = useState<string | null>(initialUrl)
+  const [backendReady, setBackendReady] = useState<boolean>(Boolean(initialUrl))
 
   useEffect(() => {
+    if (initialUrl) {
+      useDocStore.getState().setBackendUrl(initialUrl)
+    }
+
     async function init() {
-      if (!window.zhiyue) {
+      // 注册事件监听：若后端状态变化动态更新
+      if (window.zhiyue) {
+        window.zhiyue.onBackendStatus(async (s: any) => {
+          if (s.ready && s.baseUrl) {
+            setBackendUrl(s.baseUrl)
+            useDocStore.getState().setBackendUrl(s.baseUrl)
+            setBackendReady(true)
+          }
+        })
+
+        const cfg = await window.zhiyue.getBackendConfig()
+        if (cfg?.baseUrl) {
+          setBackendUrl(cfg.baseUrl)
+          useDocStore.getState().setBackendUrl(cfg.baseUrl)
+          setBackendReady(true)
+        }
+      } else {
         // Dev fallback
         const fallback = 'http://127.0.0.1:8000'
         setBackendUrl(fallback)
         useDocStore.getState().setBackendUrl(fallback)
         setBackendReady(true)
-        return
-      }
-
-      // 注册事件监听：后端就绪时更新 URL
-      window.zhiyue.onBackendStatus(async (s: any) => {
-        if (s.ready) {
-          const url = s.baseUrl || (await window.zhiyue.getBackendConfig())?.baseUrl
-          if (url) {
-            setBackendUrl(url)
-            useDocStore.getState().setBackendUrl(url)
-            setBackendReady(true)
-          }
-        }
-      })
-
-      // 初始查询（若后端已先启动完成）
-      const cfg = await window.zhiyue.getBackendConfig()
-      if (cfg?.baseUrl && cfg?.ready) {
-        setBackendUrl(cfg.baseUrl)
-        useDocStore.getState().setBackendUrl(cfg.baseUrl)
-        setBackendReady(true)
       }
     }
     init()
-  }, [])
+  }, [initialUrl])
 
   function renderPage() {
     if (!backendUrl) {
@@ -171,7 +175,9 @@ export default function App() {
             </span>
           </div>
 
-          <div className="text-[10px] font-mono text-zinc-400">ChromaDB</div>
+          <div className="text-[10px] font-mono text-zinc-400 truncate max-w-[80px]" title={backendUrl || ''}>
+            {backendUrl ? backendUrl.replace('http://127.0.0.1:', ':') : 'offline'}
+          </div>
         </div>
 
       </aside>

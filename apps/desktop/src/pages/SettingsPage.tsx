@@ -47,7 +47,10 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
 
   // 2. 保存配置
   const handleSave = async () => {
-    if (!backendUrl) return
+    if (!backendUrl) {
+      alert('保存失败：未获取到本地后端服务端口')
+      return
+    }
     setLoading(true)
     try {
       const resp = await fetch(`${backendUrl}/api/v1/settings/model`, {
@@ -64,9 +67,11 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
         setTimeout(() => setSaveToast(false), 2500)
         setApiKey('')
         await loadSettings()
+      } else {
+        alert(`保存失败：HTTP ${resp.status}`)
       }
-    } catch (e) {
-      alert('保存失败：' + e)
+    } catch (e: any) {
+      alert(`保存失败 (${backendUrl})：${e.message || e}`)
     } finally {
       setLoading(false)
     }
@@ -74,7 +79,10 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
 
   // 3. 测试连通性
   const handleTest = async () => {
-    if (!backendUrl) return
+    if (!backendUrl) {
+      setTestResult({ ok: false, error: '未连接到本地后端服务（URL为空）' })
+      return
+    }
     setTesting(true)
     setTestResult(null)
     try {
@@ -90,7 +98,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
       const data = await resp.json()
       setTestResult(data)
     } catch (e: any) {
-      setTestResult({ ok: false, error: e.message || '网络请求错误' })
+      setTestResult({ ok: false, error: `网络请求失败 (${backendUrl}): ${e.message || e}` })
     } finally {
       setTesting(false)
     }

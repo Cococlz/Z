@@ -124,6 +124,20 @@ function stopBackendService() {
   }
 }
 
+function loadApp() {
+  if (!win) return
+  if (VITE_DEV_SERVER_URL) {
+    win.loadURL(`${VITE_DEV_SERVER_URL}?backendUrl=${encodeURIComponent(backendConfig.baseUrl)}&token=${encodeURIComponent(backendConfig.token)}`)
+  } else {
+    win.loadFile(path.join(process.env.DIST as string, 'index.html'), {
+      query: {
+        backendUrl: backendConfig.baseUrl,
+        token: backendConfig.token,
+      },
+    })
+  }
+}
+
 function createWindow() {
   win = new BrowserWindow({
     title: '智阅 AI',
@@ -133,7 +147,7 @@ function createWindow() {
     minHeight: 640,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
-    backgroundColor: '#F8FAFC',
+    backgroundColor: '#F2F2F7',
     webPreferences: {
       preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
@@ -142,17 +156,26 @@ function createWindow() {
       webSecurity: false, // 允许本地 file:// 协议自由请求本地 127.0.0.1 端口
     },
   })
-
-  if (VITE_DEV_SERVER_URL) {
-    win.loadURL(VITE_DEV_SERVER_URL)
-  } else {
-    win.loadFile(path.join(process.env.DIST as string, 'index.html'))
-  }
 }
 
 // IPC Handlers
 ipcMain.handle('get-backend-config', async () => {
-  return backendConfig
+  if (backendConfig.ready) {
+    return backendConfig
+  }
+  // 若后端仍在握手，挂起等待直至就绪
+  return new Promise((resolve) => {
+    const timer = setInterval(() => {
+      if (backendConfig.ready) {
+        clearInterval(timer)
+        resolve(backendConfig)
+      }
+    }, 100)
+    setTimeout(() => {
+      clearInterval(timer)
+      resolve(backendConfig)
+    }, 15000)
+  })
 })
 
 ipcMain.handle('dialog:select-file', async (_, options) => {
@@ -178,10 +201,13 @@ app.whenReady().then(async () => {
   } catch (err) {
     console.error('[Electron] Error starting backend:', err)
   }
+  // 后端就绪后加载前端页面，并注入 query 参数
+  loadApp()
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
       createWindow()
+      loadApp()
     }
   })
 })
