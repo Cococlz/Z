@@ -13,6 +13,7 @@ from app.api.routes import health
 from app.api.routes import documents
 from app.api.routes import chat
 from app.api.routes import settings as settings_route
+from app.api.routes import reader
 from app.database.session import init_db
 
 @asynccontextmanager
@@ -43,6 +44,7 @@ app.include_router(health.router, prefix=settings.API_V1_STR, tags=["System"])
 app.include_router(documents.router, prefix=settings.API_V1_STR)
 app.include_router(chat.router)
 app.include_router(settings_route.router)
+app.include_router(reader.router)
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:

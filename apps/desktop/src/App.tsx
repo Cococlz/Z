@@ -11,6 +11,7 @@ import {
 import LibraryPage from './pages/LibraryPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { ReaderPage } from './pages/ReaderPage'
 import { useDocStore } from './stores/docStore'
 
 type Page = 'library' | 'chat' | 'reader' | 'settings'
@@ -94,17 +95,7 @@ export default function App() {
       case 'settings':
         return <SettingsPage backendUrl={backendUrl} />
       case 'reader':
-        return (
-          <div className="flex-1 flex flex-col items-center justify-center bg-[#F2F2F7] text-center p-8 space-y-3">
-            <div className="w-12 h-12 rounded-3xl bg-white shadow-sm border border-black/[0.04] flex items-center justify-center text-purple-500">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <h3 className="text-base font-bold text-zinc-800">深度长文阅读器 (Phase 5)</h3>
-            <p className="text-xs text-zinc-400 max-w-sm">
-              双栏阅读视图与 Map-Reduce 全文大纲速读功能将在下一阶段开启。
-            </p>
-          </div>
-        )
+        return <ReaderPage backendUrl={backendUrl} />
       default:
         return <LibraryPage backendUrl={backendUrl} />
     }
