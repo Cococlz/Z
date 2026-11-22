@@ -30,9 +30,46 @@ engine = _get_engine()
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 
+def _migrate_db(engine) -> None:
+    """自动检测并迁移已有表结构约束（保证向后兼容与自愈）"""
+    with engine.connect() as conn:
+        # 检查 conversations 表中 document_id 是否被限制为 NOT NULL
+        cursor = conn.connection.cursor()
+        try:
+            cursor.execute("PRAGMA table_info(conversations)")
+            columns = cursor.fetchall()
+            # PRAGMA table_info returns: (cid, name, type, notnull, dflt_value, pk)
+            for col in columns:
+                if col[1] == "document_id" and col[3] == 1:  # notnull == 1
+                    # 需要迁移以允许 NULL
+                    cursor.execute("PRAGMA foreign_keys=OFF")
+                    cursor.execute("""
+                        CREATE TABLE conversations_tmp (
+                            id VARCHAR NOT NULL PRIMARY KEY,
+                            document_id VARCHAR,
+                            title VARCHAR NOT NULL,
+                            created_at DATETIME,
+                            updated_at DATETIME,
+                            FOREIGN KEY(document_id) REFERENCES documents (id) ON DELETE CASCADE
+                        )
+                    """)
+                    cursor.execute("INSERT INTO conversations_tmp SELECT id, document_id, title, created_at, updated_at FROM conversations")
+                    cursor.execute("DROP TABLE conversations")
+                    cursor.execute("ALTER TABLE conversations_tmp RENAME TO conversations")
+                    cursor.execute("PRAGMA foreign_keys=ON")
+                    conn.connection.commit()
+                    break
+        except Exception as e:
+            # 表可能尚不存在，create_all 会负责创建
+            pass
+        finally:
+            cursor.close()
+
+
 def init_db() -> None:
-    """Create all tables if they don't already exist."""
+    """Create all tables if they don't already exist and apply migrations."""
     Base.metadata.create_all(bind=engine)
+    _migrate_db(engine)
 
 
 def get_db() -> Session:
