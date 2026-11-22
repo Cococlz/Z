@@ -11,10 +11,16 @@ import {
   ListTree,
   FileCheck2,
   Lightbulb,
+  Copy,
+  Check,
+  Languages,
+  X,
+  FileSearch,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 
 type SummaryMode = 'overall' | 'outline' | 'keypoints'
+type ReadViewMode = 'extracted' | 'native'
 
 interface PageChunk {
   chunk_index: number
@@ -33,6 +39,25 @@ interface DocContent {
   pages: PageChunk[]
 }
 
+interface FileInfo {
+  storage_path: string
+  file_url: string
+}
+
+interface HighlightTooltipState {
+  show: boolean
+  x: number
+  y: number
+  selectedText: string
+}
+
+interface InlineActionResult {
+  show: boolean
+  title: string
+  content: string
+  isStreaming: boolean
+}
+
 const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'overall', label: '全局摘要', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
   { id: 'outline', label: '思维大纲', icon: <ListTree className="w-3.5 h-3.5" /> },
@@ -46,8 +71,12 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const { documents, fetchDocuments } = useDocStore()
   const [selectedDocId, setSelectedDocId] = useState<string>('')
   const [docContent, setDocContent] = useState<DocContent | null>(null)
+  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(0)
   const [loadingContent, setLoadingContent] = useState(false)
+
+  // 阅读视图切换（精读文本 vs 原版 PDF）
+  const [readViewMode, setReadViewMode] = useState<ReadViewMode>('extracted')
 
   // AI 伴读分析面板状态
   const [mode, setMode] = useState<SummaryMode>('overall')
@@ -55,14 +84,27 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [generating, setGenerating] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
 
+  // 划词悬浮菜单与结果弹窗状态
+  const [tooltip, setTooltip] = useState<HighlightTooltipState>({
+    show: false,
+    x: 0,
+    y: 0,
+    selectedText: '',
+  })
+  const [inlineResult, setInlineResult] = useState<InlineActionResult>({
+    show: false,
+    title: '',
+    content: '',
+    isStreaming: false,
+  })
+  const [copiedHighlight, setCopiedHighlight] = useState(false)
+
   const leftContentRef = useRef<HTMLDivElement>(null)
 
-  // 1. 初始化拉取文档列表
   useEffect(() => {
     fetchDocuments()
   }, [fetchDocuments])
 
-  // 2. 默认选中第一篇已索引的文档
   useEffect(() => {
     if (!selectedDocId && documents.length > 0) {
       const readyDoc = documents.find((d) => d.status === 'indexed') || documents[0]
@@ -70,7 +112,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }, [documents, selectedDocId])
 
-  // 3. 当选中文档改变时，拉取全文内容与已有摘要缓存
+  // 加载文档内容与物理文件信息
   useEffect(() => {
     if (!selectedDocId || !backendUrl) return
 
@@ -79,16 +121,24 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       setCurrentPageIdx(0)
       setSummaries({})
       setStreamError(null)
+      setTooltip((prev) => ({ ...prev, show: false }))
 
       try {
-        // 加载正文
+        // 1. 获取正文分页
         const res = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/content`)
         if (res.ok) {
           const data: DocContent = await res.json()
           setDocContent(data)
         }
 
-        // 加载已缓存摘要
+        // 2. 获取物理文件路径（用于原版 PDF 预览）
+        const fileRes = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/file-info`)
+        if (fileRes.ok) {
+          const fData: FileInfo = await fileRes.json()
+          setFileInfo(fData)
+        }
+
+        // 3. 获取已缓存摘要
         const sumRes = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/summaries`)
         if (sumRes.ok) {
           const sumData = await sumRes.json()
@@ -108,34 +158,64 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     loadData()
   }, [selectedDocId, backendUrl])
 
-  // 4. 滚动到顶部（换页时）
   useEffect(() => {
     leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [currentPageIdx])
 
-  // 5. 流式生成指定模式的摘要
-  const handleGenerate = async (force: boolean = false) => {
-    if (!selectedDocId || !backendUrl || generating) return
+  // 划词监听处理
+  const handleMouseUp = () => {
+    const selection = window.getSelection()
+    if (!selection || selection.isCollapsed) {
+      setTooltip((prev) => ({ ...prev, show: false }))
+      return
+    }
 
-    setGenerating(true)
-    setStreamError(null)
-    setSummaries((prev) => ({ ...prev, [mode]: '' }))
+    const text = selection.toString().trim()
+    if (text.length > 1) {
+      const range = selection.getRangeAt(0)
+      const rect = range.getBoundingClientRect()
+      // 计算悬浮气泡相对于屏幕的合适坐标
+      setTooltip({
+        show: true,
+        x: Math.max(10, rect.left + rect.width / 2 - 130),
+        y: Math.max(10, rect.top - 46),
+        selectedText: text,
+      })
+    } else {
+      setTooltip((prev) => ({ ...prev, show: false }))
+    }
+  }
+
+  // 触发划词 AI 动作 (explain / translate / summarize)
+  const triggerInlineAction = async (action: 'explain' | 'translate' | 'summarize') => {
+    if (!tooltip.selectedText || !backendUrl) return
+
+    const titleMap = {
+      explain: '💡 深度原理解读',
+      translate: '🌐 语境互译',
+      summarize: '📝 核心速览',
+    }
+
+    setInlineResult({
+      show: true,
+      title: titleMap[action],
+      content: '',
+      isStreaming: true,
+    })
+    setTooltip((prev) => ({ ...prev, show: false }))
 
     try {
-      const resp = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/summarize/stream`, {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/inline-action/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          summary_type: mode,
-          force_refresh: force,
+          text: tooltip.selectedText,
+          action,
+          context: currentPage?.content ? currentPage.content.slice(0, 300) : undefined,
         }),
       })
 
-      if (!resp.ok) {
-        throw new Error(`HTTP ${resp.status}: ${resp.statusText}`)
-      }
-
-      if (!resp.body) throw new Error('未获取到流式响应体')
+      if (!resp.ok || !resp.body) throw new Error('流式响应中断')
 
       const reader = resp.body.getReader()
       const decoder = new TextDecoder('utf-8')
@@ -156,7 +236,77 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           } else if (line.startsWith('data: ')) {
             const dataStr = line.replace('data: ', '').trim()
             if (!dataStr) continue
+            try {
+              const data = JSON.parse(dataStr)
+              if (currentEvent === 'token') {
+                setInlineResult((prev) => ({ ...prev, content: prev.content + data }))
+              }
+            } catch (e) {
+              console.warn(e)
+            }
+          }
+        }
+      }
+    } catch (err: any) {
+      setInlineResult((prev) => ({
+        ...prev,
+        content: `⚠️ 请求异常: ${err.message || '请检查 API 密钥设置'}`,
+      }))
+    } finally {
+      setInlineResult((prev) => ({ ...prev, isStreaming: false }))
+    }
+  }
 
+  // 复制划词文本
+  const handleCopySelection = () => {
+    if (!tooltip.selectedText) return
+    navigator.clipboard.writeText(tooltip.selectedText)
+    setCopiedHighlight(true)
+    setTimeout(() => {
+      setCopiedHighlight(false)
+      setTooltip((prev) => ({ ...prev, show: false }))
+    }, 1200)
+  }
+
+  // 生成大纲/摘要
+  const handleGenerate = async (force: boolean = false) => {
+    if (!selectedDocId || !backendUrl || generating) return
+
+    setGenerating(true)
+    setStreamError(null)
+    setSummaries((prev) => ({ ...prev, [mode]: '' }))
+
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/summarize/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          summary_type: mode,
+          force_refresh: force,
+        }),
+      })
+
+      if (!resp.ok || !resp.body) throw new Error('未获取到流式响应体')
+
+      const reader = resp.body.getReader()
+      const decoder = new TextDecoder('utf-8')
+      let buffer = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = ''
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.replace('event: ', '').trim()
+          } else if (line.startsWith('data: ')) {
+            const dataStr = line.replace('data: ', '').trim()
+            if (!dataStr) continue
             try {
               const data = JSON.parse(dataStr)
               if (currentEvent === 'token') {
@@ -182,11 +332,12 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
   const currentPage = docContent?.pages?.[currentPageIdx]
   const totalPages = docContent?.pages?.length || 0
+  const isPdf = docContent?.file_type?.toLowerCase() === 'pdf'
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F2F2F7] h-screen overflow-hidden selection:bg-purple-100">
+    <div className="flex-1 flex flex-col bg-[#F2F2F7] h-screen overflow-hidden selection:bg-purple-100 relative">
       
-      {/* 顶部毛玻璃导航条 (iOS Frosted Top Bar) */}
+      {/* 顶部毛玻璃导航条 */}
       <header className="h-14 bg-white/70 backdrop-blur-xl border-b border-black/[0.04] px-6 flex items-center justify-between shrink-0 z-10">
         
         {/* 文档选择下拉框 */}
@@ -199,7 +350,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             <select
               value={selectedDocId}
               onChange={(e) => setSelectedDocId(e.target.value)}
-              className="px-2.5 py-1 text-xs font-bold text-zinc-800 bg-zinc-100/80 hover:bg-zinc-200/60 rounded-full focus:outline-none cursor-pointer transition-all max-w-[280px] truncate"
+              className="px-2.5 py-1 text-xs font-bold text-zinc-800 bg-zinc-100 hover:bg-zinc-200/60 rounded-full focus:outline-none cursor-pointer transition-all max-w-[280px] truncate"
             >
               {documents.map((d) => (
                 <option key={d.id} value={d.id} disabled={d.status !== 'indexed'}>
@@ -210,97 +361,148 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           </div>
         </div>
 
-        {/* 翻页控制器 (iOS 药丸控制器) */}
-        {totalPages > 0 && (
-          <div className="flex items-center space-x-2">
-            <div className="flex items-center bg-zinc-100 p-0.5 rounded-full border border-black/[0.04] shadow-2xs">
-              <button
-                onClick={() => setCurrentPageIdx((p) => Math.max(0, p - 1))}
-                disabled={currentPageIdx <= 0}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
-                title="上一页"
-              >
-                <ChevronLeft className="w-4 h-4" />
-              </button>
+        {/* 核心双重视图切换控制器 (精读排版 vs 原版版式) */}
+        <div className="flex items-center space-x-3">
+          <div className="flex items-center bg-zinc-200/70 p-1 rounded-2xl gap-1 text-xs font-semibold">
+            <button
+              onClick={() => setReadViewMode('extracted')}
+              className={`flex items-center space-x-1 px-3 py-1 rounded-xl transition-all ${
+                readViewMode === 'extracted'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-800'
+              }`}
+            >
+              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+              <span>精读排版</span>
+            </button>
 
-              <span className="px-2.5 text-xs font-mono font-semibold text-zinc-700 select-none">
-                {currentPageIdx + 1} / {totalPages}
-              </span>
-
-              <button
-                onClick={() => setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))}
-                disabled={currentPageIdx >= totalPages - 1}
-                className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
-                title="下一页"
-              >
-                <ChevronRight className="w-4 h-4" />
-              </button>
-            </div>
-
-            {docContent && (
-              <span className="text-[11px] text-zinc-400 font-mono">
-                {docContent.char_count ? `${docContent.char_count} 字` : ''}
-              </span>
-            )}
+            <button
+              onClick={() => setReadViewMode('native')}
+              className={`flex items-center space-x-1 px-3 py-1 rounded-xl transition-all ${
+                readViewMode === 'native'
+                  ? 'bg-white text-zinc-900 shadow-sm'
+                  : 'text-zinc-500 hover:text-zinc-800'
+              }`}
+            >
+              <FileSearch className="w-3.5 h-3.5 text-blue-500" />
+              <span>原版图文对照</span>
+            </button>
           </div>
-        )}
+
+          {/* 翻页器（仅在精读排版模式下显示） */}
+          {readViewMode === 'extracted' && totalPages > 0 && (
+            <div className="flex items-center space-x-2">
+              <div className="flex items-center bg-zinc-100 p-0.5 rounded-full border border-black/[0.04] shadow-2xs">
+                <button
+                  onClick={() => setCurrentPageIdx((p) => Math.max(0, p - 1))}
+                  disabled={currentPageIdx <= 0}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
+                  title="上一页"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-2.5 text-xs font-mono font-semibold text-zinc-700 select-none">
+                  {currentPageIdx + 1} / {totalPages}
+                </span>
+
+                <button
+                  onClick={() => setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))}
+                  disabled={currentPageIdx >= totalPages - 1}
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-zinc-600 hover:text-zinc-900 disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
+                  title="下一页"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
 
       </header>
 
       {/* 双栏核心工作区 */}
       <div className="flex-1 flex overflow-hidden p-5 gap-5">
         
-        {/* 左侧：正文阅读器 (iOS 纯白纸质大圆角卡片) */}
-        <section className="flex-1 bg-white rounded-3xl shadow-sm border border-black/[0.04] flex flex-col overflow-hidden">
+        {/* 左侧：阅读展示区 */}
+        <section className="flex-1 bg-white rounded-3xl shadow-sm border border-black/[0.04] flex flex-col overflow-hidden relative">
           
-          {/* 页眉元信息 */}
-          <div className="px-8 py-4 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white/50">
-            <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-500">
-              <FileText className="w-3.5 h-3.5 text-blue-500" />
-              <span className="truncate max-w-sm">
-                {currentPage?.section_title ? currentPage.section_title : `第 ${currentPage?.page_number || 1} 页`}
-              </span>
-            </div>
-            <div className="text-[11px] text-zinc-400 font-mono">
-              本页字数：{currentPage?.char_length || 0}
-            </div>
-          </div>
-
-          {/* 正文滚动区 */}
-          <div
-            ref={leftContentRef}
-            className="flex-1 overflow-y-auto px-10 py-8 selection:bg-purple-100 font-sans"
-          >
-            {loadingContent ? (
-              <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
-                <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
-                <span className="text-xs">正在渲染正文排版...</span>
-              </div>
-            ) : !currentPage ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-zinc-400">
-                <div className="w-12 h-12 rounded-3xl bg-zinc-100 flex items-center justify-center text-zinc-400">
-                  <BookOpen className="w-6 h-6" />
+          {readViewMode === 'extracted' ? (
+            /* 视图 A: 精读排版视图（支持划词操作） */
+            <>
+              {/* 页眉元信息 */}
+              <div className="px-8 py-3.5 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-white/50">
+                <div className="flex items-center space-x-2 text-xs font-semibold text-zinc-500">
+                  <FileText className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="truncate max-w-sm">
+                    {currentPage?.section_title ? currentPage.section_title : `第 ${currentPage?.page_number || 1} 页`}
+                  </span>
                 </div>
-                <p className="text-sm">暂无内容，请选择已完成解析的文档</p>
+                <div className="flex items-center space-x-3 text-[11px] text-zinc-400 font-mono">
+                  <span>💡 提示：划选任意文本即可呼出 AI 悬浮解读</span>
+                  <span>本页: {currentPage?.char_length || 0} 字</span>
+                </div>
               </div>
-            ) : (
-              <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal">
-                {currentPage.content}
-              </article>
-            )}
-          </div>
+
+              {/* 正文滚动区 */}
+              <div
+                ref={leftContentRef}
+                onMouseUp={handleMouseUp}
+                className="flex-1 overflow-y-auto px-10 py-8 selection:bg-purple-100 font-sans"
+              >
+                {loadingContent ? (
+                  <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
+                    <Loader2 className="w-6 h-6 animate-spin text-purple-500" />
+                    <span className="text-xs">正在渲染正文排版...</span>
+                  </div>
+                ) : !currentPage ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-zinc-400">
+                    <div className="w-12 h-12 rounded-3xl bg-zinc-100 flex items-center justify-center text-zinc-400">
+                      <BookOpen className="w-6 h-6" />
+                    </div>
+                    <p className="text-sm">暂无内容，请选择已完成解析的文档</p>
+                  </div>
+                ) : (
+                  <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal">
+                    {currentPage.content}
+                  </article>
+                )}
+              </div>
+            </>
+          ) : (
+            /* 视图 B: 原版 PDF 高清视觉版面对照 */
+            <div className="flex-1 h-full w-full bg-zinc-100 flex flex-col">
+              {fileInfo && isPdf ? (
+                <iframe
+                  src={`${fileInfo.file_url}#toolbar=1&navpanes=0`}
+                  title="PDF 原版视图"
+                  className="w-full h-full border-none rounded-3xl"
+                />
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-zinc-400">
+                  <div className="w-12 h-12 rounded-3xl bg-white shadow-2xs flex items-center justify-center text-blue-500">
+                    <FileSearch className="w-6 h-6" />
+                  </div>
+                  <h3 className="text-sm font-bold text-zinc-700">当前文档非 PDF 原版格式</h3>
+                  <p className="text-xs max-w-sm">
+                    原版图文对照优先针对 PDF 提供高保真版面渲染，Word 或 TXT 文档建议使用「精读排版」进行阅读。
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
 
         </section>
 
-        {/* 右侧：AI 伴读分析面板 (iOS Inset Card) */}
-        <aside className="w-[420px] bg-white rounded-3xl shadow-sm border border-black/[0.04] flex flex-col overflow-hidden shrink-0">
+        {/* 右侧：AI 伴读与深度分析面板 */}
+        <aside className="w-[440px] bg-white rounded-3xl shadow-sm border border-black/[0.04] flex flex-col overflow-hidden shrink-0">
           
-          {/* 面板顶栏：模式切换分段器 (iOS Segmented Control) */}
+          {/* 面板顶栏 */}
           <div className="p-3 border-b border-zinc-100 bg-[#F2F2F7]/50 space-y-2.5 shrink-0">
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center space-x-1.5 text-xs font-bold text-zinc-800">
                 <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                <span>AI 深度速读</span>
+                <span>AI 伴读分析</span>
               </div>
 
               {/* 生成 / 重新生成按钮 */}
@@ -371,7 +573,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 </div>
                 <p className="text-xs max-w-[240px]">
                   点击右上角「一键生成」，AI 将自动提炼本文档的
-                  {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维导图大纲' : '核心关键知识点'}
+                  {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : '核心关键知识点'}
                 </p>
               </div>
             ) : (
@@ -387,6 +589,87 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         </aside>
 
       </div>
+
+      {/* 划词悬浮 iOS 胶囊工具栏 (Highlight Floating Action Tooltip) */}
+      {tooltip.show && (
+        <div
+          style={{ top: tooltip.y, left: tooltip.x }}
+          className="fixed z-50 flex items-center bg-zinc-900/90 text-white backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-white/10 space-x-1 animate-fade-in"
+        >
+          <button
+            onClick={() => triggerInlineAction('explain')}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-amber-300 font-medium"
+            title="深度解读通俗化"
+          >
+            <Lightbulb className="w-3.5 h-3.5" />
+            <span>解读</span>
+          </button>
+
+          <span className="w-px h-3 bg-white/20" />
+
+          <button
+            onClick={() => triggerInlineAction('translate')}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-blue-300 font-medium"
+            title="中英精准翻译"
+          >
+            <Languages className="w-3.5 h-3.5" />
+            <span>翻译</span>
+          </button>
+
+          <span className="w-px h-3 bg-white/20" />
+
+          <button
+            onClick={() => triggerInlineAction('summarize')}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-emerald-300 font-medium"
+            title="一句话核心提要"
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>要点</span>
+          </button>
+
+          <span className="w-px h-3 bg-white/20" />
+
+          <button
+            onClick={handleCopySelection}
+            className="p-1 rounded-full hover:bg-white/15 active:scale-90 transition-all text-zinc-300"
+            title="复制选中文本"
+          >
+            {copiedHighlight ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+      )}
+
+      {/* 划词 AI 解答浮窗抽屉 (iOS Modal / Floating Card) */}
+      {inlineResult.show && (
+        <div className="absolute bottom-6 left-10 z-50 max-w-md w-full bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3">
+          <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
+            <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800">
+              <Sparkles className="w-4 h-4 text-purple-600" />
+              <span>{inlineResult.title}</span>
+            </div>
+            <button
+              onClick={() => setInlineResult((prev) => ({ ...prev, show: false }))}
+              className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+
+          <div className="text-xs text-zinc-700 leading-relaxed max-h-56 overflow-y-auto font-sans prose prose-xs">
+            {inlineResult.content ? (
+              <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
+            ) : (
+              <div className="flex items-center space-x-2 text-zinc-400 py-3">
+                <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
+                <span>AI 导师正在深入解读选中文段...</span>
+              </div>
+            )}
+            {inlineResult.isStreaming && (
+              <span className="inline-block w-1.5 h-3 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
+            )}
+          </div>
+        </div>
+      )}
 
     </div>
   )

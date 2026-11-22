@@ -25,6 +25,12 @@ class SummarizeRequest(BaseModel):
     force_refresh: bool = False
 
 
+class InlineActionRequest(BaseModel):
+    text: str
+    action: str = "explain"  # explain | translate | summarize
+    context: Optional[str] = None
+
+
 @router.get("/{doc_id}/content")
 def get_document_content(doc_id: str, db: Session = Depends(get_db)):
     """获取文档详情及其所有分页正文切片"""
@@ -107,6 +113,64 @@ async def summarize_stream(
 
     return StreamingResponse(
         _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+
+
+@router.get("/{doc_id}/file-info")
+def get_doc_file_info(doc_id: str, db: Session = Depends(get_db)):
+    """获取文档本地物理文件存储路径与类型"""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+    return {
+        "id": doc.id,
+        "name": doc.name,
+        "file_type": doc.file_type,
+        "storage_path": doc.storage_path,
+        "file_url": f"file://{doc.storage_path}",
+    }
+
+
+@router.post("/inline-action/stream")
+async def inline_action_stream(req: InlineActionRequest):
+    """划词轻量提问接口：深度解释、语境翻译、一句话提炼"""
+    from app.services.llm_service import get_provider
+
+    if not req.text.strip():
+        raise HTTPException(status_code=400, detail="选中文本不能为空")
+
+    action_prompts = {
+        "explain": "你是一位学识渊博的导师。请深入浅出地解释用户在阅读时选中的这段文字或专业术语，结合上下文说明其通俗含义、背景或应用场景，语言精练生动。",
+        "translate": "你是一位翻译专家。如果选中的是外语（如英语），请翻译为通顺优美的现代中文；如果是中文，请翻译为自然地道的英文。保持学术/商业专业语境。",
+        "summarize": "你是一位提炼专家。请用极简短的 1-2 句话概括提取选中文字的核心观点或结论，不加任何冗余修饰词。",
+    }
+    sys_prompt = action_prompts.get(req.action, action_prompts["explain"])
+
+    context_hint = f"\n所在文段上下文：\n{req.context}\n" if req.context else ""
+    user_prompt = f"{context_hint}选中划词文本：\n「{req.text}」\n\n请针对选中文本给出你的解读："
+
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    async def _generator():
+        try:
+            provider = get_provider()
+            async for token in provider.chat_stream(messages, temperature=0.3):
+                yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+            yield f"event: done\ndata: \"\"\n\n"
+        except Exception as e:
+            logger.exception("Inline action error")
+            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        _generator(),
         media_type="text/event-stream",
         headers={
             "Cache-Control": "no-cache",
