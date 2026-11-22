@@ -57,7 +57,7 @@ class DocumentChunk(Base):
 
     id = Column(String, primary_key=True, default=_uuid)
     document_id = Column(
-        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
     )
     chunk_index = Column(Integer, nullable=False)   # 在文档中的序号（0-based）
     page_number = Column(Integer, nullable=True)    # 物理页码（PDF）
@@ -74,7 +74,7 @@ class Summary(Base):
 
     id = Column(String, primary_key=True, default=_uuid)
     document_id = Column(
-        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
     )
     # overall | outline | keypoints
     summary_type = Column(String, nullable=False)
@@ -89,7 +89,7 @@ class Conversation(Base):
 
     id = Column(String, primary_key=True, default=_uuid)
     document_id = Column(
-        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=True
     )
     title = Column(String, nullable=False)
     created_at = Column(DateTime, default=_now)

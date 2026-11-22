@@ -93,7 +93,7 @@ async def _stream_chat(
             conv = Conversation(
                 id=conversation_id,
                 title=question[:50],
-                doc_id=doc_id,
+                document_id=doc_id,
             )
             db.add(conv)
 
@@ -108,7 +108,7 @@ async def _stream_chat(
             conversation_id=conversation_id,
             role="assistant",
             content=answer_text,
-            source_chunks=json.dumps(citations, ensure_ascii=False),
+            citations_json=json.dumps(citations, ensure_ascii=False),
         ))
         db.commit()
 
@@ -141,12 +141,12 @@ async def chat_stream(req: ChatRequest, db: Session = Depends(get_db)):
 def list_conversations(doc_id: Optional[str] = None, db: Session = Depends(get_db)):
     q = db.query(Conversation).order_by(Conversation.created_at.desc())
     if doc_id:
-        q = q.filter(Conversation.doc_id == doc_id)
+        q = q.filter(Conversation.document_id == doc_id)
     return [
         {
             "id": c.id,
             "title": c.title,
-            "doc_id": c.doc_id,
+            "doc_id": c.document_id,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c in q.limit(50).all()
@@ -166,7 +166,7 @@ def get_messages(conv_id: str, db: Session = Depends(get_db)):
             "id": m.id,
             "role": m.role,
             "content": m.content,
-            "source_chunks": json.loads(m.source_chunks) if m.source_chunks else [],
+            "source_chunks": json.loads(m.citations_json) if m.citations_json else [],
             "created_at": m.created_at.isoformat() if m.created_at else None,
         }
         for m in msgs
