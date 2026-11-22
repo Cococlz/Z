@@ -162,6 +162,23 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [currentPageIdx])
 
+  // 点击外部自动收起划词气泡（但点击气泡本身或结果卡片内部时不收起）
+  useEffect(() => {
+    const handleGlobalPointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null
+      if (!target) return
+      if (target.closest('#zhiyue-highlight-tooltip') || target.closest('#zhiyue-inline-card')) {
+        return
+      }
+      setTooltip((prev) => (prev.show ? { ...prev, show: false } : prev))
+    }
+
+    window.addEventListener('mousedown', handleGlobalPointerDown)
+    return () => {
+      window.removeEventListener('mousedown', handleGlobalPointerDown)
+    }
+  }, [])
+
   // 划词监听处理（延时 20ms 以确保浏览器选区 Rect 就绪）
   const handleMouseUp = () => {
     setTimeout(() => {
@@ -175,11 +192,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       if (text.length > 0) {
         const range = selection.getRangeAt(0)
         const rect = range.getBoundingClientRect()
-        // 浮在选中文本的正上方
+        // 浮在选中文本的正上方，并做严密屏幕边界保护
+        const targetX = Math.max(16, Math.min(window.innerWidth - 250, rect.left + rect.width / 2 - 110))
+        const targetY = rect.top < 60 ? rect.bottom + 8 : rect.top - 46
         setTooltip({
           show: true,
-          x: Math.max(16, rect.left + rect.width / 2 - 130),
-          y: Math.max(16, rect.top - 46),
+          x: targetX,
+          y: targetY,
           selectedText: text,
         })
       } else {
@@ -554,8 +573,11 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </div>
           </div>
 
-          {/* 摘要正文展示区 */}
-          <div className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-zinc-800 selection:bg-purple-100">
+          {/* 摘要正文展示区（支持划选 AI 伴读内容进行二次解读/翻译） */}
+          <div
+            onMouseUp={handleMouseUp}
+            className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-zinc-800 select-text cursor-text selection:bg-purple-200 selection:text-purple-900"
+          >
             {streamError ? (
               <div className="bg-rose-50 border border-rose-200/60 rounded-2xl p-4 text-xs text-rose-600 space-y-1">
                 <div className="font-semibold">生成异常</div>
@@ -579,7 +601,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 </p>
               </div>
             ) : (
-              <div className="prose prose-sm max-w-none prose-zinc">
+              <div className="prose prose-sm max-w-none prose-zinc select-text cursor-text">
                 <ReactMarkdown>{summaries[mode]}</ReactMarkdown>
                 {generating && (
                   <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
@@ -595,6 +617,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       {/* 划词悬浮 iOS 胶囊工具栏 (Highlight Floating Action Tooltip) */}
       {tooltip.show && (
         <div
+          id="zhiyue-highlight-tooltip"
           style={{ top: tooltip.y, left: tooltip.x }}
           className="fixed z-50 flex items-center bg-zinc-900/90 text-white backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-white/10 space-x-1 animate-fade-in"
         >
@@ -643,7 +666,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
       {/* 划词 AI 解答浮窗抽屉 (iOS Modal / Floating Card) */}
       {inlineResult.show && (
-        <div className="absolute bottom-6 left-10 z-50 max-w-md w-full bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3">
+        <div
+          id="zhiyue-inline-card"
+          className="absolute bottom-6 left-10 z-50 max-w-md w-full bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3"
+        >
           <div className="flex items-center justify-between pb-1 border-b border-zinc-100">
             <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800">
               <Sparkles className="w-4 h-4 text-purple-600" />
