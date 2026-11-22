@@ -7,14 +7,16 @@ import {
   Sparkles,
   Circle,
   Cpu,
+  Shuffle,
 } from 'lucide-react'
 import LibraryPage from './pages/LibraryPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ReaderPage } from './pages/ReaderPage'
+import { ConvertPage } from './pages/ConvertPage'
 import { useDocStore } from './stores/docStore'
 
-type Page = 'library' | 'chat' | 'reader' | 'settings'
+type Page = 'library' | 'chat' | 'reader' | 'convert' | 'settings'
 
 interface NavItem {
   id: Page
@@ -27,6 +29,7 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'library', label: '文档知识库', icon: <FolderOpen className="w-4 h-4" />, color: 'bg-blue-500' },
   { id: 'chat', label: 'AI 问答', icon: <MessageSquare className="w-4 h-4" />, color: 'bg-emerald-500' },
   { id: 'reader', label: '深度阅读', icon: <BookOpen className="w-4 h-4" />, color: 'bg-purple-500' },
+  { id: 'convert', label: '格式工坊', icon: <Shuffle className="w-4 h-4" />, color: 'bg-amber-500' },
   { id: 'settings', label: '偏好设置', icon: <Settings className="w-4 h-4" />, color: 'bg-zinc-600' },
 ]
 
@@ -96,6 +99,8 @@ export default function App() {
         return <SettingsPage backendUrl={backendUrl} />
       case 'reader':
         return <ReaderPage backendUrl={backendUrl} />
+      case 'convert':
+        return <ConvertPage backendUrl={backendUrl} />
       default:
         return <LibraryPage backendUrl={backendUrl} />
     }

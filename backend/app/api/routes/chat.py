@@ -171,3 +171,29 @@ def get_messages(conv_id: str, db: Session = Depends(get_db)):
         }
         for m in msgs
     ]
+
+
+@router.delete("/conversations/{conv_id}")
+def delete_conversation(conv_id: str, db: Session = Depends(get_db)):
+    """删除指定会话及所有关联消息"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    db.delete(conv)
+    db.commit()
+    return {"ok": True, "message": "会话已删除"}
+
+
+class RenameConvRequest(BaseModel):
+    title: str
+
+
+@router.patch("/conversations/{conv_id}")
+def rename_conversation(conv_id: str, req: RenameConvRequest, db: Session = Depends(get_db)):
+    """重命名会话标题"""
+    conv = db.query(Conversation).filter(Conversation.id == conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    conv.title = req.title.strip() or "未命名会话"
+    db.commit()
+    return {"ok": True, "title": conv.title}

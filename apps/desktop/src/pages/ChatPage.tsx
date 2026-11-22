@@ -9,9 +9,13 @@ import {
   Layers,
   Bot,
   User,
-  AlertCircle,
-  ExternalLink,
+  Plus,
+  MessageSquare,
+  Trash2,
+  PanelLeftClose,
+  PanelLeftOpen,
   X,
+  Clock,
 } from 'lucide-react'
 import { useDocStore, Document } from '../stores/docStore'
 
@@ -32,12 +36,25 @@ interface ChatMessage {
   isStreaming?: boolean
 }
 
+interface ConversationItem {
+  id: string
+  title: string
+  doc_id?: string
+  created_at: string
+}
+
 export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
   const storeUrl = useDocStore((s) => s.backendUrl)
   const backendUrl = propUrl || storeUrl || ''
 
   const { documents, fetchDocuments } = useDocStore()
   const [selectedDocId, setSelectedDocId] = useState<string>('all')
+
+  // 会话管理状态
+  const [conversations, setConversations] = useState<ConversationItem[]>([])
+  const [activeConvId, setActiveConvId] = useState<string | null>(null)
+  const [showHistory, setShowHistory] = useState<boolean>(true)
+
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 'welcome',
@@ -53,7 +70,8 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
 
   useEffect(() => {
     fetchDocuments()
-  }, [fetchDocuments])
+    loadConversations()
+  }, [backendUrl])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -63,9 +81,79 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
     scrollToBottom()
   }, [messages])
 
-  // 发送消息与流式响应
+  // 1. 加载历史会话列表
+  const loadConversations = async () => {
+    if (!backendUrl) return
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/chat/conversations`)
+      if (resp.ok) {
+        const data = await resp.json()
+        setConversations(data)
+      }
+    } catch (e) {
+      console.error('加载会话列表失败', e)
+    }
+  }
+
+  // 2. 切换选中的会话
+  const handleSelectConversation = async (conv: ConversationItem) => {
+    if (isGenerating) return
+    setActiveConvId(conv.id)
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/chat/conversations/${conv.id}/messages`)
+      if (resp.ok) {
+        const msgs = await resp.json()
+        setMessages(
+          msgs.map((m: any) => ({
+            id: m.id,
+            role: m.role,
+            content: m.content,
+            citations: m.source_chunks || [],
+          }))
+        )
+      }
+    } catch (e) {
+      console.error('加载会话消息失败', e)
+    }
+  }
+
+  // 3. 新建对话
+  const handleNewChat = () => {
+    if (isGenerating) return
+    setActiveConvId(null)
+    setMessages([
+      {
+        id: 'welcome',
+        role: 'assistant',
+        content: '已开启新对话。请问有什么可以帮你的？',
+      },
+    ])
+  }
+
+  // 4. 删除会话
+  const handleDeleteConversation = async (convId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    if (!backendUrl) return
+    if (!window.confirm('确认删除该对话记录？')) return
+
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/chat/conversations/${convId}`, {
+        method: 'DELETE',
+      })
+      if (resp.ok) {
+        setConversations((prev) => prev.filter((c) => c.id !== convId))
+        if (activeConvId === convId) {
+          handleNewChat()
+        }
+      }
+    } catch (err) {
+      console.error('删除会话失败', err)
+    }
+  }
+
+  // 5. 发送消息与流式响应
   const handleSend = async () => {
-    if (!input.trim() || isGenerating) return
+    if (!input.trim() || isGenerating || !backendUrl) return
 
     const userText = input.trim()
     setInput('')
@@ -73,7 +161,6 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
     const userMsgId = 'user_' + Date.now()
     const assistantMsgId = 'ai_' + Date.now()
 
-    // 1. 追加用户消息和空的助理消息
     setMessages((prev) => [
       ...prev,
       { id: userMsgId, role: 'user', content: userText },
@@ -88,6 +175,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
         body: JSON.stringify({
           question: userText,
           doc_id: selectedDocId === 'all' ? undefined : selectedDocId,
+          conversation_id: activeConvId || undefined,
         }),
       })
 
@@ -123,19 +211,22 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
               const data = JSON.parse(dataStr)
 
               if (currentEvent === 'citations') {
-                // 引用信息
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsgId ? { ...m, citations: data } : m
                   )
                 )
               } else if (currentEvent === 'token') {
-                // 文本 chunk
                 setMessages((prev) =>
                   prev.map((m) =>
                     m.id === assistantMsgId ? { ...m, content: m.content + data } : m
                   )
                 )
+              } else if (currentEvent === 'done') {
+                if (data.conversation_id) {
+                  setActiveConvId(data.conversation_id)
+                  loadConversations()
+                }
               } else if (currentEvent === 'error') {
                 setMessages((prev) =>
                   prev.map((m) =>
@@ -174,138 +265,224 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
     }
   }
 
-  // 根据 doc_id 查找文档名称
   const getDocName = (docId: string) => {
     const doc = documents.find((d) => d.id === docId)
     return doc ? doc.name : '未知文档'
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F2F2F7] h-screen overflow-hidden selection:bg-blue-100 relative">
+    <div className="flex-1 flex bg-[#F2F2F7] h-screen overflow-hidden selection:bg-blue-100 relative">
       
-      {/* 顶部毛玻璃导航条 (iOS Frosted Header) */}
-      <header className="h-14 bg-white/70 backdrop-blur-xl border-b border-black/[0.04] px-6 flex items-center justify-between shrink-0 z-10">
-        <div className="flex items-center space-x-2">
-          <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
-            <Sparkles className="w-4 h-4" />
-          </div>
-          <span className="text-sm font-semibold text-zinc-900">AI 智能知识问答</span>
-        </div>
+      {/* 左侧：历史会话抽屉 (iOS Inset List) */}
+      <aside
+        className={`${
+          showHistory ? 'w-64' : 'w-0'
+        } transition-all duration-200 border-r border-black/[0.05] bg-white/60 backdrop-blur-xl flex flex-col justify-between shrink-0 overflow-hidden z-20`}
+      >
+        <div className="p-3.5 space-y-3 flex-1 flex flex-col min-h-0">
+          
+          {/* 顶栏：新建对话按钮 */}
+          <button
+            onClick={handleNewChat}
+            disabled={isGenerating}
+            className="w-full py-2.5 px-3.5 rounded-2xl bg-white border border-black/[0.06] hover:bg-zinc-50 active:scale-95 transition-all text-xs font-bold text-zinc-800 shadow-2xs flex items-center justify-between"
+          >
+            <div className="flex items-center space-x-2">
+              <div className="w-5 h-5 rounded-lg bg-blue-500 text-white flex items-center justify-center">
+                <Plus className="w-3.5 h-3.5" />
+              </div>
+              <span>新建问答对话</span>
+            </div>
+          </button>
 
-        {/* 范围选择分段胶囊 */}
-        <div className="flex items-center bg-zinc-200/60 p-0.5 rounded-full text-xs">
-          <div className="flex items-center px-3 py-1 space-x-1.5">
-            <Layers className="w-3.5 h-3.5 text-zinc-500" />
-            <span className="text-zinc-600 font-medium">检索范围:</span>
-            <select
-              value={selectedDocId}
-              onChange={(e) => setSelectedDocId(e.target.value)}
-              className="bg-transparent font-semibold text-zinc-800 focus:outline-none cursor-pointer"
-            >
-              <option value="all">📚 全部已索引文档 ({documents.filter(d => d.status === 'indexed').length} 篇)</option>
-              {documents
-                .filter((d) => d.status === 'indexed')
-                .map((d) => (
-                  <option key={d.id} value={d.id}>
-                    📄 {d.name}
-                  </option>
-                ))}
-            </select>
+          {/* 会话列表 */}
+          <div className="text-[11px] font-semibold text-zinc-400 px-2 pt-1 uppercase tracking-wider">
+            历史对话 ({conversations.length})
           </div>
-        </div>
-      </header>
 
-      {/* 对话流主展示区 (Message List) */}
-      <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
-        <div className="max-w-3xl mx-auto space-y-6">
-          {messages.map((msg) => (
-            <div
-              key={msg.id}
-              className={`flex items-start space-x-3 ${
-                msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
-              }`}
+          <div className="flex-1 overflow-y-auto space-y-1 pr-1">
+            {conversations.length === 0 ? (
+              <div className="text-center py-8 text-xs text-zinc-400">
+                暂无历史记录
+              </div>
+            ) : (
+              conversations.map((c) => {
+                const isActive = activeConvId === c.id
+                return (
+                  <div
+                    key={c.id}
+                    onClick={() => handleSelectConversation(c)}
+                    className={`group w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between cursor-pointer ${
+                      isActive
+                        ? 'bg-blue-500 text-white shadow-xs'
+                        : 'text-zinc-700 hover:bg-black/[0.04]'
+                    }`}
+                  >
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <MessageSquare className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-white' : 'text-zinc-400'}`} />
+                      <span className="truncate max-w-[150px]">{c.title || '新对话'}</span>
+                    </div>
+
+                    <button
+                      onClick={(e) => handleDeleteConversation(c.id, e)}
+                      className={`opacity-0 group-hover:opacity-100 p-1 rounded-lg hover:bg-black/10 transition-opacity ${
+                        isActive ? 'text-white/80 hover:text-white' : 'text-zinc-400 hover:text-rose-600'
+                      }`}
+                      title="删除对话"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )
+              })
+            )}
+          </div>
+
+        </div>
+      </aside>
+
+      {/* 右侧主对话区 */}
+      <div className="flex-1 flex flex-col h-full overflow-hidden">
+        
+        {/* 顶部毛玻璃导航条 */}
+        <header className="h-14 bg-white/70 backdrop-blur-xl border-b border-black/[0.04] px-6 flex items-center justify-between shrink-0 z-10">
+          <div className="flex items-center space-x-3">
+            <button
+              onClick={() => setShowHistory((v) => !v)}
+              className="w-8 h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 flex items-center justify-center text-zinc-600 active:scale-95 transition-all shadow-2xs"
+              title={showHistory ? '收起历史列表' : '展开历史列表'}
             >
-              {/* 头像 */}
+              {showHistory ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
+            </button>
+
+            <div className="flex items-center space-x-2">
+              <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <span className="text-sm font-semibold text-zinc-900">
+                {activeConvId
+                  ? conversations.find((c) => c.id === activeConvId)?.title || 'AI 智能知识问答'
+                  : 'AI 智能知识问答'}
+              </span>
+            </div>
+          </div>
+
+          {/* 范围选择分段胶囊 */}
+          <div className="flex items-center bg-zinc-200/60 p-0.5 rounded-full text-xs">
+            <div className="flex items-center px-3 py-1 space-x-1.5">
+              <Layers className="w-3.5 h-3.5 text-zinc-500" />
+              <span className="text-zinc-600 font-medium">检索范围:</span>
+              <select
+                value={selectedDocId}
+                onChange={(e) => setSelectedDocId(e.target.value)}
+                className="bg-transparent font-semibold text-zinc-800 focus:outline-none cursor-pointer"
+              >
+                <option value="all">📚 全部已索引文档 ({documents.filter((d) => d.status === 'indexed').length} 篇)</option>
+                {documents
+                  .filter((d) => d.status === 'indexed')
+                  .map((d) => (
+                    <option key={d.id} value={d.id}>
+                      📄 {d.name}
+                    </option>
+                  ))}
+              </select>
+            </div>
+          </div>
+        </header>
+
+        {/* 对话消息流 */}
+        <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
+          <div className="max-w-3xl mx-auto space-y-6">
+            {messages.map((msg) => (
               <div
-                className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
-                  msg.role === 'user'
-                    ? 'bg-[#007AFF] text-white'
-                    : 'bg-white text-blue-600 border border-black/[0.04]'
+                key={msg.id}
+                className={`flex items-start space-x-3 ${
+                  msg.role === 'user' ? 'flex-row-reverse space-x-reverse' : 'flex-row'
                 }`}
               >
-                {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
-              </div>
-
-              {/* 气泡内容 */}
-              <div className={`max-w-[85%] space-y-2`}>
+                {/* 头像 */}
                 <div
-                  className={`px-4 py-3 text-sm leading-relaxed ${
+                  className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 shadow-sm ${
                     msg.role === 'user'
-                      ? 'bg-[#007AFF] text-white rounded-2xl rounded-tr-sm shadow-sm'
-                      : 'bg-white text-zinc-800 rounded-2xl rounded-tl-sm border border-black/[0.04] shadow-sm'
+                      ? 'bg-[#007AFF] text-white'
+                      : 'bg-white text-blue-600 border border-black/[0.04]'
                   }`}
                 >
-                  <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert">
-                    <ReactMarkdown>{msg.content}</ReactMarkdown>
-                  </div>
-                  {msg.isStreaming && (
-                    <span className="inline-block w-1.5 h-4 ml-1 bg-blue-500 animate-pulse rounded-full align-middle" />
-                  )}
+                  {msg.role === 'user' ? <User className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
                 </div>
 
-                {/* 溯源引用小组件胶囊 (Citations Badges) */}
-                {msg.citations && msg.citations.length > 0 && (
-                  <div className="flex flex-wrap gap-1.5 pt-1">
-                    {msg.citations.map((cite, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setActiveCitation(cite)}
-                        className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 hover:bg-white text-zinc-600 hover:text-blue-600 border border-black/[0.06] shadow-2xs transition-all active:scale-95"
-                      >
-                        <Bookmark className="w-3 h-3 text-blue-500" />
-                        <span className="truncate max-w-[140px]">{getDocName(cite.doc_id)}</span>
-                        <span className="text-zinc-400">· 第{cite.page_number}页</span>
-                        <span className="text-emerald-600 font-semibold">{Math.round(cite.score * 100)}%</span>
-                      </button>
-                    ))}
+                {/* 气泡内容 */}
+                <div className="max-w-[85%] space-y-2">
+                  <div
+                    className={`px-4 py-3 text-sm leading-relaxed ${
+                      msg.role === 'user'
+                        ? 'bg-[#007AFF] text-white rounded-2xl rounded-tr-sm shadow-sm'
+                        : 'bg-white text-zinc-800 rounded-2xl rounded-tl-sm border border-black/[0.04] shadow-sm'
+                    }`}
+                  >
+                    <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert">
+                      <ReactMarkdown>{msg.content}</ReactMarkdown>
+                    </div>
+                    {msg.isStreaming && (
+                      <span className="inline-block w-1.5 h-4 ml-1 bg-blue-500 animate-pulse rounded-full align-middle" />
+                    )}
                   </div>
-                )}
+
+                  {/* 溯源引用小组件胶囊 */}
+                  {msg.citations && msg.citations.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {msg.citations.map((cite, idx) => (
+                        <button
+                          key={idx}
+                          onClick={() => setActiveCitation(cite)}
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 hover:bg-white text-zinc-600 hover:text-blue-600 border border-black/[0.06] shadow-2xs transition-all active:scale-95"
+                        >
+                          <Bookmark className="w-3 h-3 text-blue-500" />
+                          <span className="truncate max-w-[140px]">{getDocName(cite.doc_id)}</span>
+                          <span className="text-zinc-400">· 第{cite.page_number}页</span>
+                          <span className="text-emerald-600 font-semibold">{Math.round(cite.score * 100)}%</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
-            </div>
-          ))}
-          <div ref={messagesEndRef} />
-        </div>
-      </main>
+            ))}
+            <div ref={messagesEndRef} />
+          </div>
+        </main>
 
-      {/* 底部悬浮毛玻璃胶囊输入框 (iOS Floating Pill Input) */}
-      <footer className="p-5 max-w-3xl w-full mx-auto shrink-0">
-        <div className="bg-white/80 backdrop-blur-xl border border-black/[0.06] rounded-2xl p-2 pl-4 shadow-md flex items-end space-x-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
-          <textarea
-            rows={1}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder={
-              documents.length === 0
-                ? '请先在文档库导入文档后再提问...'
-                : '向本地知识库提问... (Enter 发送，Shift + Enter 换行)'
-            }
-            disabled={isGenerating}
-            className="flex-1 max-h-32 bg-transparent text-sm text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none py-1.5 leading-relaxed"
-          />
+        {/* 底部悬浮毛玻璃胶囊输入框 */}
+        <footer className="p-5 max-w-3xl w-full mx-auto shrink-0">
+          <div className="bg-white/80 backdrop-blur-xl border border-black/[0.06] rounded-2xl p-2 pl-4 shadow-md flex items-end space-x-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+            <textarea
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder={
+                documents.length === 0
+                  ? '请先在文档库导入文档后再提问...'
+                  : '向知识库提问... (Enter 发送，Shift + Enter 换行)'
+              }
+              disabled={isGenerating}
+              className="flex-1 max-h-32 bg-transparent text-sm text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none py-1.5 leading-relaxed"
+            />
 
-          <button
-            type="button"
-            onClick={handleSend}
-            disabled={!input.trim() || isGenerating}
-            className="w-8 h-8 rounded-xl bg-[#007AFF] text-white flex items-center justify-center hover:bg-blue-600 active:scale-90 transition-all disabled:opacity-40 disabled:pointer-events-none shrink-0 shadow-sm"
-          >
-            <Send className="w-4 h-4" />
-          </button>
-        </div>
-      </footer>
+            <button
+              type="button"
+              onClick={handleSend}
+              disabled={!input.trim() || isGenerating}
+              className="w-8 h-8 rounded-xl bg-[#007AFF] text-white flex items-center justify-center hover:bg-blue-600 active:scale-90 transition-all disabled:opacity-40 disabled:pointer-events-none shrink-0 shadow-sm"
+            >
+              <Send className="w-4 h-4" />
+            </button>
+          </div>
+        </footer>
 
-      {/* 引用来源弹窗详情抽屉 (iOS Modal Card) */}
+      </div>
+
+      {/* 引用来源弹窗详情抽屉 */}
       {activeCitation && (
         <div className="absolute inset-0 bg-black/25 backdrop-blur-xs flex items-center justify-center z-50 p-6 animate-fade-in">
           <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-black/[0.04] space-y-4">
