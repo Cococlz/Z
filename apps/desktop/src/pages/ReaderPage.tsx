@@ -11,12 +11,8 @@ import {
   ListTree,
   FileCheck2,
   Lightbulb,
-  Layers,
-  ArrowRight,
-  Hash,
-  Eye,
 } from 'lucide-react'
-import { useDocStore, Document } from '../stores/docStore'
+import { useDocStore } from '../stores/docStore'
 
 type SummaryMode = 'overall' | 'outline' | 'keypoints'
 

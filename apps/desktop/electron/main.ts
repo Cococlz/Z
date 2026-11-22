@@ -33,8 +33,8 @@ function getPythonPath(): string {
     }
     return 'python3'
   }
-  // In production, packaged python binary
-  return path.join(process.resourcesPath, 'backend_dist', 'main')
+  // In production, packaged standalone binary
+  return path.join(process.resourcesPath, 'backend_dist', 'zhiyue-backend')
 }
 
 function startBackendService(): Promise<void> {
@@ -42,23 +42,23 @@ function startBackendService(): Promise<void> {
     const pythonPath = getPythonPath()
     const backendCwd = isDev
       ? path.resolve(__dirname, '../../../backend')
-      : path.join(process.resourcesPath, 'backend')
+      : path.join(process.resourcesPath, 'backend_dist')
 
     const parentPid = process.pid
 
     console.log(`[Electron] Starting Python Backend: ${pythonPath} in ${backendCwd}`)
 
-    pyProcess = spawn(
-      pythonPath,
-      ['-m', 'app.main', '--parent-pid', parentPid.toString(), '--port', '0'],
-      {
-        cwd: backendCwd,
-        env: {
-          ...process.env,
-          PYTHONUNBUFFERED: '1',
-        },
-      }
-    )
+    const args = isDev
+      ? ['-m', 'app.main', '--parent-pid', parentPid.toString(), '--port', '0']
+      : ['--parent-pid', parentPid.toString(), '--port', '0']
+
+    pyProcess = spawn(pythonPath, args, {
+      cwd: backendCwd,
+      env: {
+        ...process.env,
+        PYTHONUNBUFFERED: '1',
+      },
+    })
 
     let isHandshakeComplete = false
 

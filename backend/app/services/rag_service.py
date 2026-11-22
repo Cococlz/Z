@@ -27,9 +27,17 @@ COLLECTION_NAME = "zhiyue_knowledge_base"
 def _get_embed_model():
     global _embed_model
     if _embed_model is None:
+        import os
+        from pathlib import Path
         from fastembed import TextEmbedding  # type: ignore
-        logger.info("Loading FastEmbed model: BAAI/bge-small-zh-v1.5")
-        _embed_model = TextEmbedding("BAAI/bge-small-zh-v1.5")
+
+        # 优先读取预置模型路径，实现 100% 离线脱网运行
+        backend_dir = Path(__file__).resolve().parent.parent.parent
+        bundled_cache = backend_dir / "bundled_models" / "fastembed_cache"
+        cache_dir = str(bundled_cache) if bundled_cache.exists() else None
+
+        logger.info("Loading FastEmbed model: BAAI/bge-small-zh-v1.5 (cache_dir=%s)", cache_dir)
+        _embed_model = TextEmbedding("BAAI/bge-small-zh-v1.5", cache_dir=cache_dir)
         logger.info("FastEmbed model loaded")
     return _embed_model
 

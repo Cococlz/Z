@@ -140,7 +140,7 @@ function DocRow({
 // ── Main Library Page ─────────────────────────────────────────────────────────
 
 export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
-  const { documents, loading, error, fetchDocuments, addDocument, updateDocStatus, removeDocument } =
+  const { documents, loading, error, fetchDocuments, removeDocument } =
     useDocStore()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [uploading, setUploading] = useState(false)

@@ -8,13 +8,10 @@ import {
   Download,
   Loader2,
   Sparkles,
-  FileText,
   Eye,
   Code2,
-  FolderDown,
-  Layers,
 } from 'lucide-react'
-import { useDocStore, Document } from '../stores/docStore'
+import { useDocStore } from '../stores/docStore'
 
 type ConvertTab = 'markdown' | 'images'
 

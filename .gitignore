@@ -45,3 +45,8 @@ logs/
 .env
 .env.local
 backend/.dev_data/
+apps/desktop/release/
+apps/desktop/resources/
+backend/dist/
+backend/build/
+backend/bundled_models/

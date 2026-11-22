@@ -5,7 +5,6 @@ import {
   MessageSquare,
   Settings,
   Sparkles,
-  Circle,
   Cpu,
   Shuffle,
 } from 'lucide-react'

@@ -5,7 +5,6 @@ import {
   Sparkles,
   FileText,
   Bookmark,
-  ChevronDown,
   Layers,
   Bot,
   User,
@@ -15,9 +14,8 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
-  Clock,
 } from 'lucide-react'
-import { useDocStore, Document } from '../stores/docStore'
+import { useDocStore } from '../stores/docStore'
 
 interface Citation {
   doc_id: string
