@@ -144,9 +144,28 @@ async def inline_action_stream(req: InlineActionRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="选中文本不能为空")
 
+    # 从用户偏好中读取目标翻译语言
+    target_lang = "通顺优美的现代中文"
+    try:
+        from app.database.session import SessionLocal
+        from app.database.models import AppSetting
+        with SessionLocal() as db:
+            row = db.query(AppSetting).filter(AppSetting.key == "reader_target_lang").first()
+            if row and row.value:
+                lang_map = {
+                    "zh-CN": "通顺优美的现代中文",
+                    "en": "自然地道的现代英文",
+                    "ja": "地道自然的现代日文",
+                    "fr": "优美标准的法文",
+                    "de": "严谨精练的德文",
+                }
+                target_lang = lang_map.get(row.value, "通顺优美的现代中文")
+    except Exception:
+        pass
+
     action_prompts = {
         "explain": "你是一位学识渊博的导师。请深入浅出地解释用户在阅读时选中的这段文字或专业术语，结合上下文说明其通俗含义、背景或应用场景，语言精练生动。",
-        "translate": "你是一位翻译专家。如果选中的是外语（如英语），请翻译为通顺优美的现代中文；如果是中文，请翻译为自然地道的英文。保持学术/商业专业语境。",
+        "translate": f"你是一位专业翻译导师。请将用户选中的文本精准翻译为{target_lang}。保持专业语境与术语规范，如果原文已是该语言，则转换为规范的英文。",
         "summarize": "你是一位提炼专家。请用极简短的 1-2 句话概括提取选中文字的核心观点或结论，不加任何冗余修饰词。",
     }
     sys_prompt = action_prompts.get(req.action, action_prompts["explain"])

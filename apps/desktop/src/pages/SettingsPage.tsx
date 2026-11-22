@@ -1,88 +1,222 @@
 import React, { useState, useEffect } from 'react'
-import { Key, Server, Cpu, CheckCircle2, XCircle, Loader2, Sparkles, Database, ShieldCheck } from 'lucide-react'
+import {
+  Key,
+  Server,
+  Cpu,
+  CheckCircle2,
+  XCircle,
+  Loader2,
+  Sparkles,
+  FolderOpen,
+  Trash2,
+  RefreshCw,
+  BookOpen,
+  HelpCircle,
+  ChevronDown,
+  ChevronUp,
+  Sliders,
+  Globe,
+  HardDrive,
+} from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 
-interface ModelSettings {
-  is_configured: boolean
-  masked_api_key: string
-  model: string
-  base_url: string
+interface OverviewData {
+  llm: {
+    provider: string
+    is_configured: boolean
+    masked_api_key: string
+    model: string
+    base_url: string
+    temperature: number
+  }
+  storage: {
+    app_data_dir: string
+    docs_count: number
+    docs_size_mb: number
+    database_size_mb: number
+    vector_size_mb: number
+    total_size_mb: number
+  }
+  preferences: {
+    reader_target_lang: string
+    reader_font_size: string
+  }
+  system: {
+    version: string
+    arch: string
+    python_version: string
+    fastembed_model: string
+    is_macos: boolean
+  }
+}
+
+// 预设厂商模板
+const PROVIDER_PRESETS: Record<
+  string,
+  { name: string; baseUrl: string; defaultModel: string; models: string[]; requiresKey: boolean }
+> = {
+  deepseek: {
+    name: 'DeepSeek 官方',
+    baseUrl: 'https://api.deepseek.com',
+    defaultModel: 'deepseek-chat',
+    models: ['deepseek-chat', 'deepseek-reasoner'],
+    requiresKey: true,
+  },
+  siliconflow: {
+    name: '硅基流动 SiliconFlow',
+    baseUrl: 'https://api.siliconflow.cn/v1',
+    defaultModel: 'deepseek-ai/DeepSeek-V3',
+    models: [
+      'deepseek-ai/DeepSeek-V3',
+      'deepseek-ai/DeepSeek-R1',
+      'Qwen/Qwen2.5-72B-Instruct',
+    ],
+    requiresKey: true,
+  },
+  ollama: {
+    name: 'Ollama 本地大模型 (纯离线)',
+    baseUrl: 'http://127.0.0.1:11434/v1',
+    defaultModel: 'deepseek-r1:1.5b',
+    models: ['deepseek-r1:1.5b', 'deepseek-r1:7b', 'llama3.2', 'qwen2.5:7b'],
+    requiresKey: false,
+  },
+  custom: {
+    name: '自定义 OpenAI 兼容接口',
+    baseUrl: 'https://api.example.com/v1',
+    defaultModel: 'gpt-4o-mini',
+    models: [],
+    requiresKey: true,
+  },
 }
 
 export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
   const storeUrl = useDocStore((s) => s.backendUrl)
   const backendUrl = propUrl || storeUrl || ''
+  const fetchDocuments = useDocStore((s) => s.fetchDocuments)
 
+  // 1. 全局配置状态
+  const [provider, setProvider] = useState('deepseek')
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('deepseek-chat')
   const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com')
-  const [isConfigured, setIsConfigured] = useState(false)
-  const [maskedKey, setMaskedKey] = useState('')
+  const [temperature, setTemperature] = useState(0.3)
+  const [targetLang, setTargetLang] = useState('zh-CN')
+  const [fontSize, setFontSize] = useState('normal')
 
-  const [loading, setLoading] = useState(false)
+  const [maskedKey, setMaskedKey] = useState('')
+  const [isConfigured, setIsConfigured] = useState(false)
+  const [storageStats, setStorageStats] = useState<OverviewData['storage'] | null>(null)
+  const [systemInfo, setSystemInfo] = useState<OverviewData['system'] | null>(null)
+
+  // 2. 交互状态
+  const [savingLlm, setSavingLlm] = useState(false)
   const [testing, setTesting] = useState(false)
   const [testResult, setTestResult] = useState<{ ok: boolean; latency_ms?: number; error?: string } | null>(null)
-  const [saveToast, setSaveToast] = useState(false)
+  const [toastMessage, setToastMessage] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
 
-  // 1. 加载配置
-  const loadSettings = async () => {
+  // 3. FAQ 折叠状态
+  const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg)
+    setTimeout(() => setToastMessage(null), 2500)
+  }
+
+  // 加载全景设置
+  const loadOverview = async () => {
     if (!backendUrl) return
     try {
-      const resp = await fetch(`${backendUrl}/api/v1/settings/model`)
+      const resp = await fetch(`${backendUrl}/api/v1/settings/overview`)
       if (resp.ok) {
-        const data: ModelSettings = await resp.json()
-        setIsConfigured(data.is_configured)
-        setMaskedKey(data.masked_api_key)
-        setModel(data.model || 'deepseek-chat')
-        setBaseUrl(data.base_url || 'https://api.deepseek.com')
+        const data: OverviewData = await resp.json()
+        setProvider(data.llm.provider || 'deepseek')
+        setIsConfigured(data.llm.is_configured)
+        setMaskedKey(data.llm.masked_api_key)
+        setModel(data.llm.model || 'deepseek-chat')
+        setBaseUrl(data.llm.base_url || 'https://api.deepseek.com')
+        setTemperature(data.llm.temperature ?? 0.3)
+
+        setTargetLang(data.preferences.reader_target_lang || 'zh-CN')
+        setFontSize(data.preferences.reader_font_size || 'normal')
+
+        setStorageStats(data.storage)
+        setSystemInfo(data.system)
       }
     } catch (e) {
-      console.error('加载设置失败', e)
+      console.error('加载系统全景设置失败', e)
     }
   }
 
   useEffect(() => {
-    loadSettings()
+    loadOverview()
   }, [backendUrl])
 
-  // 2. 保存配置
-  const handleSave = async () => {
-    if (!backendUrl) {
-      alert('保存失败：未获取到本地后端服务端口')
-      return
+  // 切换厂商预设时自动同步默认参数
+  const handleSelectProvider = (newProv: string) => {
+    setProvider(newProv)
+    const preset = PROVIDER_PRESETS[newProv]
+    if (preset) {
+      setBaseUrl(preset.baseUrl)
+      setModel(preset.defaultModel)
     }
-    setLoading(true)
+  }
+
+  // 保存模型配置
+  const handleSaveLlm = async () => {
+    if (!backendUrl) return
+    setSavingLlm(true)
     try {
       const resp = await fetch(`${backendUrl}/api/v1/settings/model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
+          provider,
           api_key: apiKey,
           model,
           base_url: baseUrl,
+          temperature,
         }),
       })
       if (resp.ok) {
-        setSaveToast(true)
-        setTimeout(() => setSaveToast(false), 2500)
+        showToast('模型配置已成功更新')
         setApiKey('')
-        await loadSettings()
+        await loadOverview()
       } else {
         alert(`保存失败：HTTP ${resp.status}`)
       }
     } catch (e: any) {
-      alert(`保存失败 (${backendUrl})：${e.message || e}`)
+      alert(`保存失败: ${e.message || e}`)
     } finally {
-      setLoading(false)
+      setSavingLlm(false)
     }
   }
 
-  // 3. 测试连通性
-  const handleTest = async () => {
-    if (!backendUrl) {
-      setTestResult({ ok: false, error: '未连接到本地后端服务（URL为空）' })
-      return
+  // 保存阅读偏好
+  const handleSavePreferences = async (newLang: string, newSize: string) => {
+    if (!backendUrl) return
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/preferences`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          reader_target_lang: newLang,
+          reader_font_size: newSize,
+        }),
+      })
+      if (resp.ok) {
+        setTargetLang(newLang)
+        setFontSize(newSize)
+        showToast('阅读偏好已保存')
+      }
+    } catch (e: any) {
+      console.error(e)
     }
+  }
+
+  // 测试连通性
+  const handleTest = async () => {
+    if (!backendUrl) return
     setTesting(true)
     setTestResult(null)
     try {
@@ -98,117 +232,286 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
       const data = await resp.json()
       setTestResult(data)
     } catch (e: any) {
-      setTestResult({ ok: false, error: `网络请求失败 (${backendUrl}): ${e.message || e}` })
+      setTestResult({ ok: false, error: `网络请求失败: ${e.message || e}` })
     } finally {
       setTesting(false)
     }
   }
 
+  // 在 Finder 中打开数据目录
+  const handleOpenInFinder = async () => {
+    if (!backendUrl) return
+    setActionLoading('finder')
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/storage/open-in-finder`, {
+        method: 'POST',
+      })
+      if (resp.ok) {
+        showToast('已在 Finder 中打开数据目录')
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // 一键清理临时缓存
+  const handleClearCache = async () => {
+    if (!backendUrl) return
+    setActionLoading('cache')
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/storage/clear-cache`, {
+        method: 'POST',
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        showToast(`清理完成，释放 ${data.freed_mb || 0} MB 空间`)
+        await loadOverview()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // 全量重建向量索引
+  const handleReindex = async () => {
+    if (!backendUrl) return
+    if (!confirm('重建向量索引将重新计算所有文档的特征嵌入，确定开始吗？')) return
+    setActionLoading('reindex')
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/storage/reindex`, {
+        method: 'POST',
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        showToast(`重建完成，已重新索引 ${data.indexed_count} 篇文档`)
+        await loadOverview()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  // 恢复出厂示范文档
+  const handleRestoreOnboarding = async () => {
+    if (!backendUrl) return
+    setActionLoading('onboarding')
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/onboarding/restore`, {
+        method: 'POST',
+      })
+      if (resp.ok) {
+        showToast('已将《快速上手与功能示范》恢复至知识库！')
+        await fetchDocuments()
+        await loadOverview()
+      }
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
   return (
-    <div className="flex-1 bg-[#F2F2F7] overflow-y-auto px-8 py-7 selection:bg-blue-100">
-      <div className="max-w-2xl mx-auto space-y-7">
-        
-        {/* 顶部标题区 - iOS 风格大标题 */}
+    <div className="flex-1 bg-[#F2F2F7] overflow-y-auto px-8 py-7 selection:bg-blue-100 font-sans">
+      <div className="max-w-2xl mx-auto space-y-7 pb-12">
+        {/* 顶部标题栏 */}
         <div className="flex items-center justify-between pt-1">
           <div>
             <h1 className="text-2xl font-bold tracking-tight text-zinc-900">系统设置</h1>
-            <p className="text-xs text-zinc-500 mt-1">管理你的大模型引擎、本地知识库参数与隐私偏好</p>
+            <p className="text-xs text-zinc-500 mt-1">管理你的本地知识库资产、大模型引擎与个性化阅读偏好</p>
           </div>
-          {saveToast && (
-            <div className="flex items-center space-x-1.5 px-3 py-1.5 bg-emerald-500 text-white text-xs font-medium rounded-full shadow-sm animate-fade-in">
-              <CheckCircle2 className="w-3.5 h-3.5" />
-              <span>设置已保存</span>
+          {toastMessage && (
+            <div className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-full shadow-lg animate-fade-in">
+              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+              <span>{toastMessage}</span>
             </div>
           )}
         </div>
 
-        {/* Section 1: 模型引擎 (iOS Inset Grouped Card) */}
+        {/* ─────────────────────────────────────────────────────────────────
+            Section 1: 大模型与厂商配置
+        ───────────────────────────────────────────────────────────────── */}
         <div>
-          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-            AI 引擎配置
+          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between">
+            <span>AI 模型引擎与厂商预设</span>
+            <span className="text-[10px] text-zinc-400 font-normal">支持 DeepSeek · 硅基流动 · Ollama</span>
           </div>
+
           <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
-            
-            {/* 配置项 1: API Key */}
-            <div className="p-4 flex items-start space-x-3.5">
-              <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
-                <Key className="w-4 h-4" />
-              </div>
-              <div className="flex-1 space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-zinc-800">DeepSeek API Key</span>
-                  {isConfigured && (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
-                      已配置 · {maskedKey}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-zinc-400">密钥仅加密保存在本地 SQLite 中，绝不上传至任何第三方服务器</p>
-                <div className="pt-2">
-                  <input
-                    type="password"
-                    placeholder={isConfigured ? "输入新 Key 以替换现存密钥..." : "sk-..."}
-                    value={apiKey}
-                    onChange={(e) => setApiKey(e.target.value)}
-                    className="w-full px-3.5 py-2 text-sm bg-zinc-50 border border-zinc-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-zinc-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* 配置项 2: 模型代号 */}
-            <div className="p-4 flex items-center space-x-3.5">
-              <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-sm">
-                <Cpu className="w-4 h-4" />
-              </div>
-              <div className="flex-1 flex items-center justify-between">
-                <div>
-                  <div className="text-sm font-semibold text-zinc-800">模型选择</div>
-                  <div className="text-xs text-zinc-400">默认推荐 DeepSeek-V3 高速推理</div>
-                </div>
-                <div className="w-48">
-                  <select
-                    value={model}
-                    onChange={(e) => setModel(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700"
-                  >
-                    <option value="deepseek-chat">deepseek-chat (V3)</option>
-                    <option value="deepseek-reasoner">deepseek-reasoner (R1 深度思考)</option>
-                  </select>
-                </div>
-              </div>
-            </div>
-
-            {/* 配置项 3: API Base URL */}
+            {/* 1.1 厂商选择 */}
             <div className="p-4 flex items-center space-x-3.5">
               <div className="w-8 h-8 rounded-xl bg-purple-500 flex items-center justify-center text-white shrink-0 shadow-sm">
                 <Server className="w-4 h-4" />
               </div>
               <div className="flex-1 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">接口 Base URL</div>
-                  <div className="text-xs text-zinc-400">官方默认 https://api.deepseek.com</div>
+                  <div className="text-sm font-semibold text-zinc-800">服务厂商</div>
+                  <div className="text-xs text-zinc-400">选择推荐服务商或接入本地离线大模型</div>
                 </div>
                 <div className="w-56">
+                  <select
+                    value={provider}
+                    onChange={(e) => handleSelectProvider(e.target.value)}
+                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-zinc-700"
+                  >
+                    {Object.entries(PROVIDER_PRESETS).map(([k, p]) => (
+                      <option key={k} value={k}>
+                        {p.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 1.2 API Key */}
+            <div className="p-4 flex items-start space-x-3.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0 mt-0.5 shadow-sm">
+                <Key className="w-4 h-4" />
+              </div>
+              <div className="flex-1 space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-zinc-800">API Key 密钥</span>
+                  {provider === 'ollama' ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-600 border border-purple-200/60">
+                      Ollama 本地免密钥
+                    </span>
+                  ) : isConfigured ? (
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                      已配置 · {maskedKey}
+                    </span>
+                  ) : null}
+                </div>
+                <p className="text-xs text-zinc-400">
+                  {provider === 'ollama'
+                    ? 'Ollama 本地无需 API Key，只要本地安装并运行即可'
+                    : '密钥仅保存在本地 SQLite 中，绝不上传到任何三方云端'}
+                </p>
+                {provider !== 'ollama' && (
+                  <div className="pt-2">
+                    <input
+                      type="password"
+                      placeholder={isConfigured ? '输入新 Key 覆盖现存密钥...' : 'sk-...'}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      className="w-full px-3.5 py-2 text-sm bg-zinc-50 border border-zinc-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-zinc-400"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* 1.3 模型代号 */}
+            <div className="p-4 flex items-center space-x-3.5">
+              <div className="w-8 h-8 rounded-xl bg-amber-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Cpu className="w-4 h-4" />
+              </div>
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-800">模型名称 (Model)</div>
+                  <div className="text-xs text-zinc-400">
+                    {provider === 'deepseek'
+                      ? '推荐 deepseek-chat 或 deepseek-reasoner'
+                      : provider === 'ollama'
+                      ? '与本地 `ollama list` 中的模型名称一致'
+                      : '模型代号识别码'}
+                  </div>
+                </div>
+                <div className="w-56">
+                  {PROVIDER_PRESETS[provider]?.models.length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700"
+                      >
+                        {PROVIDER_PRESETS[provider].models.map((m) => (
+                          <option key={m} value={m}>
+                            {m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : (
+                    <input
+                      type="text"
+                      value={model}
+                      onChange={(e) => setModel(e.target.value)}
+                      className="w-full px-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700 font-mono"
+                    />
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* 1.4 API Base URL */}
+            <div className="p-4 flex items-center space-x-3.5">
+              <div className="w-8 h-8 rounded-xl bg-indigo-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-800">Base URL 端点</div>
+                  <div className="text-xs text-zinc-400">接口请求根路径</div>
+                </div>
+                <div className="w-60">
                   <input
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700 font-mono"
+                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-zinc-700 font-mono"
                   />
                 </div>
               </div>
             </div>
 
+            {/* 1.5 温度调节滑块 */}
+            <div className="p-4 flex items-center space-x-3.5">
+              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Sliders className="w-4 h-4" />
+              </div>
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center space-x-2">
+                    <span className="text-sm font-semibold text-zinc-800">生成温度 (Temperature)</span>
+                    <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                      {temperature}
+                    </span>
+                  </div>
+                  <div className="text-xs text-zinc-400">
+                    {temperature <= 0.3 ? '严谨精准，忠于知识库事实' : temperature >= 0.7 ? '发散创造，语言更富有联想' : '适中平衡，推荐通用场景'}
+                  </div>
+                </div>
+                <div className="w-48 flex items-center space-x-2">
+                  <span className="text-[11px] text-zinc-400">0.0</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={temperature}
+                    onChange={(e) => setTemperature(parseFloat(e.target.value))}
+                    className="w-full accent-emerald-500 cursor-pointer"
+                  />
+                  <span className="text-[11px] text-zinc-400">1.0</span>
+                </div>
+              </div>
+            </div>
           </div>
 
-          {/* 按钮操作栏：测试 & 保存 */}
+          {/* 按钮栏：测试连通性 & 保存模型 */}
           <div className="mt-3 flex items-center justify-between px-1">
             <div className="flex items-center space-x-2">
               <button
                 type="button"
                 onClick={handleTest}
-                disabled={testing || (!isConfigured && !apiKey)}
+                disabled={testing || (provider !== 'ollama' && !isConfigured && !apiKey)}
                 className="px-4 py-2 rounded-full text-xs font-semibold bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-1.5"
               >
                 {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-blue-500" />}
@@ -216,9 +519,11 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </button>
 
               {testResult && (
-                <div className={`flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
-                  testResult.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
-                }`}>
+                <div
+                  className={`flex items-center space-x-1.5 text-xs font-medium px-3 py-1.5 rounded-full ${
+                    testResult.ok ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600'
+                  }`}
+                >
                   {testResult.ok ? (
                     <>
                       <CheckCircle2 className="w-3.5 h-3.5" />
@@ -238,45 +543,241 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
 
             <button
               type="button"
-              onClick={handleSave}
-              disabled={loading}
+              onClick={handleSaveLlm}
+              disabled={savingLlm}
               className="px-6 py-2 rounded-full text-xs font-semibold bg-[#007AFF] text-white hover:bg-blue-600 active:scale-95 transition-all shadow-sm shadow-blue-500/20 disabled:opacity-50"
             >
-              {loading ? '保存中...' : '保存更改'}
+              {savingLlm ? '保存中...' : '保存模型配置'}
             </button>
           </div>
         </div>
 
-        {/* Section 2: 存储与隐私说明 (iOS Inset Grouped Card) */}
+        {/* ─────────────────────────────────────────────────────────────────
+            Section 2: 本地存储与资产管理 (Local-First 核心)
+        ───────────────────────────────────────────────────────────────── */}
         <div>
-          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-            本地存储与隐私
+          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center justify-between">
+            <span>本地存储与数据管理</span>
+            <span className="text-[10px] text-zinc-400 font-normal">Local-First 纯本地私有化</span>
           </div>
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
-            
-            <div className="p-4 flex items-center space-x-3.5">
-              <div className="w-8 h-8 rounded-xl bg-teal-500 flex items-center justify-center text-white shrink-0 shadow-sm">
-                <Database className="w-4 h-4" />
+
+          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] p-5 space-y-4">
+            {/* 存储容量指标卡片网格 */}
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+                <div className="text-[11px] text-zinc-400 font-medium">原始文档</div>
+                <div className="text-base font-bold text-zinc-800">
+                  {storageStats?.docs_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
+                </div>
+                <div className="text-[10px] text-zinc-500 font-medium">{storageStats?.docs_count || 0} 篇文件</div>
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-zinc-800">本地离线向量化</div>
-                <div className="text-xs text-zinc-400 mt-0.5">采用 FastEmbed (BAAI/bge-small-zh-v1.5) 本地离线计算向量，无需消耗联网 Token</div>
+
+              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+                <div className="text-[11px] text-zinc-400 font-medium">向量索引库</div>
+                <div className="text-base font-bold text-purple-600">
+                  {storageStats?.vector_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
+                </div>
+                <div className="text-[10px] text-zinc-500 font-medium">ChromaDB 稠密</div>
+              </div>
+
+              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+                <div className="text-[11px] text-zinc-400 font-medium">关系数据库</div>
+                <div className="text-base font-bold text-blue-600">
+                  {storageStats?.database_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
+                </div>
+                <div className="text-[10px] text-zinc-500 font-medium">SQLite WAL</div>
+              </div>
+
+              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+                <div className="text-[11px] text-zinc-400 font-medium">磁盘总占用</div>
+                <div className="text-base font-bold text-zinc-900">
+                  {storageStats?.total_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
+                </div>
+                <div className="text-[10px] text-emerald-600 font-medium">100% 本地持有</div>
               </div>
             </div>
 
-            <div className="p-4 flex items-center space-x-3.5">
-              <div className="w-8 h-8 rounded-xl bg-emerald-500 flex items-center justify-center text-white shrink-0 shadow-sm">
-                <ShieldCheck className="w-4 h-4" />
+            {/* 本地目录路径说明 */}
+            <div className="flex items-center justify-between text-xs bg-zinc-50 border border-zinc-100 px-3.5 py-2.5 rounded-xl font-mono text-zinc-600">
+              <div className="flex items-center space-x-2 truncate mr-3">
+                <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
+                <span className="truncate" title={storageStats?.app_data_dir}>
+                  {storageStats?.app_data_dir || '~/Library/Application Support/ZhiyueAI'}
+                </span>
               </div>
-              <div className="flex-1">
-                <div className="text-sm font-semibold text-zinc-800">Local-First 隐私防线</div>
-                <div className="text-xs text-zinc-400 mt-0.5">所有原始文档与向量库持久化在本地 ~/Library/Application Support/ZhiyueAI，仅在提问时向 API 传输 Top-K 相关上下文</div>
-              </div>
+              <button
+                onClick={handleOpenInFinder}
+                disabled={actionLoading === 'finder'}
+                className="px-3 py-1 bg-white border border-zinc-200 rounded-lg font-sans font-semibold text-blue-600 hover:bg-blue-50 active:scale-95 transition-all text-xs shrink-0 flex items-center space-x-1 shadow-2xs"
+              >
+                <FolderOpen className="w-3.5 h-3.5" />
+                <span>在 Finder 中打开</span>
+              </button>
             </div>
 
+            {/* 存储维护操作按钮组 */}
+            <div className="pt-1 flex items-center space-x-3 text-xs">
+              <button
+                onClick={handleClearCache}
+                disabled={actionLoading === 'cache'}
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+              >
+                {actionLoading === 'cache' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-zinc-500" />}
+                <span>清理临时缓存</span>
+              </button>
+
+              <button
+                onClick={handleReindex}
+                disabled={actionLoading === 'reindex'}
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+              >
+                {actionLoading === 'reindex' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-purple-600" />}
+                <span>全量重建向量索引</span>
+              </button>
+
+              <button
+                onClick={handleRestoreOnboarding}
+                disabled={actionLoading === 'onboarding'}
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+              >
+                {actionLoading === 'onboarding' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5 text-blue-600" />}
+                <span>重置/导入新手实操指南</span>
+              </button>
+            </div>
           </div>
         </div>
 
+        {/* ─────────────────────────────────────────────────────────────────
+            Section 3: 阅读与伴读偏好
+        ───────────────────────────────────────────────────────────────── */}
+        <div>
+          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
+            阅读与划词偏好
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
+            {/* 3.1 划词翻译默认目标语言 */}
+            <div className="p-4 flex items-center space-x-3.5">
+              <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Globe className="w-4 h-4" />
+              </div>
+              <div className="flex-1 flex items-center justify-between">
+                <div>
+                  <div className="text-sm font-semibold text-zinc-800">划词翻译目标语言</div>
+                  <div className="text-xs text-zinc-400">在正文或伴读区划词点击「翻译」时的优先目标语种</div>
+                </div>
+                <div className="w-48">
+                  <select
+                    value={targetLang}
+                    onChange={(e) => handleSavePreferences(e.target.value, fontSize)}
+                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700"
+                  >
+                    <option value="zh-CN">简体中文 (Chinese)</option>
+                    <option value="en">现代英文 (English)</option>
+                    <option value="ja">自然日文 (Japanese)</option>
+                    <option value="fr">优美法文 (French)</option>
+                    <option value="de">严谨德文 (German)</option>
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* 3.2 划词浮窗操作提示 */}
+            <div className="p-4 flex items-center space-x-3.5 bg-purple-50/40">
+              <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-sm">
+                <Sparkles className="w-4 h-4" />
+              </div>
+              <div className="flex-1">
+                <div className="text-sm font-semibold text-zinc-800">浮窗自由拖拽特性</div>
+                <div className="text-xs text-zinc-500 mt-0.5">
+                  划词呼出的 AI 解答卡片支持按住顶栏随心拖动到屏幕任意位置，防止遮挡原文，并自动记忆摆放位置。
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            Section 4: 使用小贴士与常见解答 (FAQ)
+        ───────────────────────────────────────────────────────────────── */}
+        <div>
+          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase flex items-center space-x-1">
+            <HelpCircle className="w-3.5 h-3.5" />
+            <span>使用小贴士与常见解答 (FAQ)</span>
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
+            {[
+              {
+                q: '如何获取并配置 DeepSeek API Key？',
+                a: '访问 DeepSeek 开放平台（platform.deepseek.com）注册账号，在「API Keys」页面点击创建密钥即可复制。新注册用户通常有免费额度。智阅 AI 将密钥存放在本地 SQLite 中，绝不回传任何第三方。',
+              },
+              {
+                q: '什么是离线向量计算？会泄露我的私人文档吗？',
+                a: '绝不会。智阅 AI 内置了 BAAI/bge-small-zh-v1.5 离线嵌入模型，当您导入文档时，分块与特征向量计算 100% 在您本地 Mac 芯片上完成，不消耗网络 Token。只有在主动发起提问时，系统才将检索出的最相关片段送至大模型。',
+              },
+              {
+                q: '如何实现无网络环境下的 100% 纯离线对话？',
+                a: '您可在本地运行 Ollama（如运行 `ollama run deepseek-r1:1.5b`），然后在「服务厂商」下拉菜单选择「Ollama 本地大模型」，无需配置任何 API Key，即可在无网环境下完全私密离线运行！',
+              },
+              {
+                q: '阅读器有哪些好用的快捷技巧？',
+                a: '1. 用鼠标在左侧正文或右侧 AI 伴读中划选任意文字，均可秒出「解读 / 翻译 / 要点」胶囊；\n2. 弹出的卡片支持按住顶栏自由拖拽与避让；\n3. 右上角随时可切换「精读排版」与「PDF 原版图文对照」。',
+              },
+            ].map((faq, idx) => {
+              const isOpen = expandedFaq === idx
+              return (
+                <div key={idx} className="transition-colors hover:bg-zinc-50/50">
+                  <button
+                    onClick={() => setExpandedFaq(isOpen ? null : idx)}
+                    className="w-full p-4 flex items-center justify-between text-left text-xs font-semibold text-zinc-800"
+                  >
+                    <span>{faq.q}</span>
+                    {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
+                  </button>
+                  {isOpen && (
+                    <div className="px-4 pb-4 text-xs text-zinc-600 leading-relaxed whitespace-pre-line border-t border-zinc-50 pt-2 animate-fade-in bg-zinc-50/30">
+                      {faq.a}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* ─────────────────────────────────────────────────────────────────
+            Section 5: 系统诊断与关于
+        ───────────────────────────────────────────────────────────────── */}
+        <div>
+          <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
+            关于智阅 AI 与运行环境
+          </div>
+
+          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] p-5 space-y-3 text-xs text-zinc-600">
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-800">应用版本</span>
+              <span className="font-mono text-zinc-500">v{systemInfo?.version || '1.0.0'} (Desktop Edition)</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-800">系统架构</span>
+              <span className="font-mono text-zinc-500">{systemInfo?.arch || 'macOS (arm64)'}</span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-800">本地离线向量引擎</span>
+              <span className="font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+                {systemInfo?.fastembed_model || 'BAAI/bge-small-zh-v1.5 (已就绪)'}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="font-semibold text-zinc-800">内核通信</span>
+              <span className="inline-flex items-center space-x-1 text-emerald-600">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
+                <span>Python IPC 守护线程在线</span>
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   )

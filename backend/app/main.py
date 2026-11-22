@@ -22,6 +22,17 @@ async def lifespan(app: FastAPI):
     # Startup: Ensure storage folders exist and init DB tables
     settings.ensure_directories()
     init_db()
+
+    # 首次启动：知识库若为空，自动创建出厂实操指南示例文档
+    try:
+        from app.database.session import SessionLocal
+        from app.services.onboarding_service import ensure_onboarding_document
+        with SessionLocal() as db:
+            ensure_onboarding_document(db)
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).warning("初始化新手上手指南失败: %s", e)
+
     yield
     # Shutdown logic if any
 
