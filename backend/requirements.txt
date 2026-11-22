@@ -1,0 +1,21 @@
+# Core Web API & Server
+fastapi>=0.109.0
+uvicorn[standard]>=0.27.0
+pydantic>=2.6.0
+pydantic-settings>=2.1.0
+httpx>=0.26.0
+python-multipart>=0.0.7
+psutil>=5.9.8
+
+# Data & Storage (Phase 2+)
+sqlalchemy>=2.0.25
+aiosqlite>=0.19.0
+
+# Document Parsers (Phase 2+)
+pymupdf>=1.23.8
+python-docx>=1.1.0
+
+# Vector & AI (Phase 3~4)
+fastembed>=0.2.2
+chromadb>=0.4.22
+openai>=1.12.0
