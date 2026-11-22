@@ -44,3 +44,4 @@ cache/
 logs/
 .env
 .env.local
+backend/.dev_data/

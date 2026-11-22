@@ -10,11 +10,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.core.watchdog import start_watchdog
 from app.api.routes import health
+from app.api.routes import documents
+from app.database.session import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: Ensure storage folders exist
+    # Startup: Ensure storage folders exist and init DB tables
     settings.ensure_directories()
+    init_db()
     yield
     # Shutdown logic if any
 
@@ -35,6 +38,7 @@ app.add_middleware(
 
 # Register routes
 app.include_router(health.router, prefix=settings.API_V1_STR, tags=["System"])
+app.include_router(documents.router, prefix=settings.API_V1_STR)
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
