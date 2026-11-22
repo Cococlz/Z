@@ -162,28 +162,30 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
   }, [currentPageIdx])
 
-  // 划词监听处理
+  // 划词监听处理（延时 20ms 以确保浏览器选区 Rect 就绪）
   const handleMouseUp = () => {
-    const selection = window.getSelection()
-    if (!selection || selection.isCollapsed) {
-      setTooltip((prev) => ({ ...prev, show: false }))
-      return
-    }
+    setTimeout(() => {
+      const selection = window.getSelection()
+      if (!selection || selection.isCollapsed) {
+        setTooltip((prev) => ({ ...prev, show: false }))
+        return
+      }
 
-    const text = selection.toString().trim()
-    if (text.length > 1) {
-      const range = selection.getRangeAt(0)
-      const rect = range.getBoundingClientRect()
-      // 计算悬浮气泡相对于屏幕的合适坐标
-      setTooltip({
-        show: true,
-        x: Math.max(10, rect.left + rect.width / 2 - 130),
-        y: Math.max(10, rect.top - 46),
-        selectedText: text,
-      })
-    } else {
-      setTooltip((prev) => ({ ...prev, show: false }))
-    }
+      const text = selection.toString().trim()
+      if (text.length > 0) {
+        const range = selection.getRangeAt(0)
+        const rect = range.getBoundingClientRect()
+        // 浮在选中文本的正上方
+        setTooltip({
+          show: true,
+          x: Math.max(16, rect.left + rect.width / 2 - 130),
+          y: Math.max(16, rect.top - 46),
+          selectedText: text,
+        })
+      } else {
+        setTooltip((prev) => ({ ...prev, show: false }))
+      }
+    }, 20)
   }
 
   // 触发划词 AI 动作 (explain / translate / summarize)
@@ -448,7 +450,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <div
                 ref={leftContentRef}
                 onMouseUp={handleMouseUp}
-                className="flex-1 overflow-y-auto px-10 py-8 selection:bg-purple-100 font-sans"
+                className="flex-1 overflow-y-auto px-10 py-8 font-sans select-text cursor-text selection:bg-purple-200 selection:text-purple-900"
               >
                 {loadingContent ? (
                   <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
@@ -463,7 +465,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     <p className="text-sm">暂无内容，请选择已完成解析的文档</p>
                   </div>
                 ) : (
-                  <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal">
+                  <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal select-text cursor-text">
                     {currentPage.content}
                   </article>
                 )}

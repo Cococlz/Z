@@ -106,10 +106,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F2F2F7] font-sans overflow-hidden select-none">
+    <div className="flex h-screen bg-[#F2F2F7] font-sans overflow-hidden">
       
       {/* iOS 风格侧边栏 (Sidebar) */}
-      <aside className="w-60 bg-white/70 backdrop-blur-2xl border-r border-black/[0.05] flex flex-col justify-between shrink-0 p-4 pt-8">
+      <aside className="w-60 bg-white/70 backdrop-blur-2xl border-r border-black/[0.05] flex flex-col justify-between shrink-0 p-4 pt-8 select-none">
         <div className="space-y-6">
           
           {/* Logo 标题区 */}
