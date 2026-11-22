@@ -139,6 +139,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // needed for preload IPC
+      webSecurity: false, // 允许本地 file:// 协议自由请求本地 127.0.0.1 端口
     },
   })
 

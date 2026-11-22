@@ -29,10 +29,10 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# Enable CORS for local Electron renderer
+# Enable CORS for local Electron renderer (allow any origin reflection)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"^.*$",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
