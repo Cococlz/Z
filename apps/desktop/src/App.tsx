@@ -11,6 +11,7 @@ import {
 import LibraryPage from './pages/LibraryPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
+import { useDocStore } from './stores/docStore'
 
 type Page = 'library' | 'chat' | 'reader' | 'settings'
 
@@ -37,18 +38,32 @@ export default function App() {
     async function init() {
       if (!window.zhiyue) {
         // Dev fallback
-        setBackendUrl('http://127.0.0.1:8000')
+        const fallback = 'http://127.0.0.1:8000'
+        setBackendUrl(fallback)
+        useDocStore.getState().setBackendUrl(fallback)
         setBackendReady(true)
         return
       }
+
+      // 注册事件监听：后端就绪时更新 URL
+      window.zhiyue.onBackendStatus(async (s: any) => {
+        if (s.ready) {
+          const url = s.baseUrl || (await window.zhiyue.getBackendConfig())?.baseUrl
+          if (url) {
+            setBackendUrl(url)
+            useDocStore.getState().setBackendUrl(url)
+            setBackendReady(true)
+          }
+        }
+      })
+
+      // 初始查询（若后端已先启动完成）
       const cfg = await window.zhiyue.getBackendConfig()
-      if (cfg?.baseUrl) {
+      if (cfg?.baseUrl && cfg?.ready) {
         setBackendUrl(cfg.baseUrl)
+        useDocStore.getState().setBackendUrl(cfg.baseUrl)
         setBackendReady(true)
       }
-      window.zhiyue.onBackendStatus((s: any) => {
-        if (s.ready) setBackendReady(true)
-      })
     }
     init()
   }, [])
@@ -69,9 +84,9 @@ export default function App() {
       case 'library':
         return <LibraryPage backendUrl={backendUrl} />
       case 'chat':
-        return <ChatPage />
+        return <ChatPage backendUrl={backendUrl} />
       case 'settings':
-        return <SettingsPage />
+        return <SettingsPage backendUrl={backendUrl} />
       case 'reader':
         return (
           <div className="flex-1 flex flex-col items-center justify-center bg-[#F2F2F7] text-center p-8 space-y-3">
@@ -93,11 +108,11 @@ export default function App() {
     <div className="flex h-screen bg-[#F2F2F7] font-sans overflow-hidden select-none">
       
       {/* iOS 风格侧边栏 (Sidebar) */}
-      <aside className="w-60 bg-white/70 backdrop-blur-2xl border-r border-black/[0.05] flex flex-col justify-between shrink-0 p-4">
+      <aside className="w-60 bg-white/70 backdrop-blur-2xl border-r border-black/[0.05] flex flex-col justify-between shrink-0 p-4 pt-8">
         <div className="space-y-6">
           
           {/* Logo 标题区 */}
-          <div className="flex items-center space-x-2.5 px-2 pt-2">
+          <div className="flex items-center space-x-2.5 px-2 pt-1">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white shadow-md shadow-blue-500/25">
               <Sparkles className="w-4 h-4" />
             </div>

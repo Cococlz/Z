@@ -32,7 +32,10 @@ interface ChatMessage {
   isStreaming?: boolean
 }
 
-export const ChatPage: React.FC = () => {
+export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
+  const storeUrl = useDocStore((s) => s.backendUrl)
+  const backendUrl = propUrl || storeUrl || ''
+
   const { documents, fetchDocuments } = useDocStore()
   const [selectedDocId, setSelectedDocId] = useState<string>('all')
   const [messages, setMessages] = useState<ChatMessage[]>([
@@ -79,7 +82,7 @@ export const ChatPage: React.FC = () => {
     setIsGenerating(true)
 
     try {
-      const response = await fetch('/api/v1/chat/stream', {
+      const response = await fetch(`${backendUrl}/api/v1/chat/stream`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

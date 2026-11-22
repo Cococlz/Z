@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react'
 import { Key, Server, Cpu, CheckCircle2, XCircle, Loader2, Sparkles, Database, ShieldCheck } from 'lucide-react'
+import { useDocStore } from '../stores/docStore'
 
 interface ModelSettings {
   is_configured: boolean
@@ -8,7 +9,10 @@ interface ModelSettings {
   base_url: string
 }
 
-export const SettingsPage: React.FC = () => {
+export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
+  const storeUrl = useDocStore((s) => s.backendUrl)
+  const backendUrl = propUrl || storeUrl || ''
+
   const [apiKey, setApiKey] = useState('')
   const [model, setModel] = useState('deepseek-chat')
   const [baseUrl, setBaseUrl] = useState('https://api.deepseek.com')
@@ -22,8 +26,9 @@ export const SettingsPage: React.FC = () => {
 
   // 1. 加载配置
   const loadSettings = async () => {
+    if (!backendUrl) return
     try {
-      const resp = await fetch('/api/v1/settings/model')
+      const resp = await fetch(`${backendUrl}/api/v1/settings/model`)
       if (resp.ok) {
         const data: ModelSettings = await resp.json()
         setIsConfigured(data.is_configured)
@@ -38,13 +43,14 @@ export const SettingsPage: React.FC = () => {
 
   useEffect(() => {
     loadSettings()
-  }, [])
+  }, [backendUrl])
 
   // 2. 保存配置
   const handleSave = async () => {
+    if (!backendUrl) return
     setLoading(true)
     try {
-      const resp = await fetch('/api/v1/settings/model', {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -68,10 +74,11 @@ export const SettingsPage: React.FC = () => {
 
   // 3. 测试连通性
   const handleTest = async () => {
+    if (!backendUrl) return
     setTesting(true)
     setTestResult(null)
     try {
-      const resp = await fetch('/api/v1/settings/model/test', {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/model/test`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({

@@ -1,7 +1,10 @@
 import { app, BrowserWindow, ipcMain, dialog } from 'electron'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
 import fs from 'node:fs'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 process.env.DIST = path.join(__dirname, '../dist')
 process.env.VITE_PUBLIC = app.isPackaged
@@ -72,7 +75,12 @@ function startBackendService(): Promise<void> {
         backendConfig.ready = true
 
         console.log(`[Electron] Backend connected at ${backendConfig.baseUrl}`)
-        win?.webContents.send('backend-status', { ready: true })
+        win?.webContents.send('backend-status', {
+          ready: true,
+          baseUrl: backendConfig.baseUrl,
+          token: backendConfig.token,
+          port: backendConfig.port,
+        })
         resolve()
       }
     })
@@ -127,7 +135,7 @@ function createWindow() {
     trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: '#F8FAFC',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.js'),
+      preload: path.join(__dirname, 'preload.mjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // needed for preload IPC

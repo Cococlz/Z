@@ -38,7 +38,11 @@ class BaseLLMProvider(ABC):
 class DeepSeekProvider(BaseLLMProvider):
     def __init__(self, api_key: str, model: str = "deepseek-chat", base_url: str = "https://api.deepseek.com"):
         from openai import AsyncOpenAI  # type: ignore
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=15.0,
+        )
         self._model = model
 
     async def chat_stream(
@@ -69,7 +73,18 @@ class DeepSeekProvider(BaseLLMProvider):
             latency_ms = int((time.time() - t0) * 1000)
             return {"ok": True, "latency_ms": latency_ms, "model": resp.model}
         except Exception as e:
-            return {"ok": False, "latency_ms": -1, "model": "", "error": str(e)}
+            err_str = str(e)
+            if "AuthenticationError" in type(e).__name__ or "401" in err_str:
+                error_msg = "API Key 无效或未授权 (401)"
+            elif "NotFoundError" in type(e).__name__ or "404" in err_str:
+                error_msg = f"模型不存在或 Base URL 路径错误: {self._model}"
+            elif "ConnectTimeout" in type(e).__name__ or "timed out" in err_str.lower():
+                error_msg = "连接大模型服务超时，请检查网络或代理设置"
+            elif "ConnectError" in type(e).__name__ or "Connection refused" in err_str:
+                error_msg = "无法连接至 Base URL，请检查网络或是否需要代理"
+            else:
+                error_msg = f"{type(e).__name__}: {err_str[:120]}"
+            return {"ok": False, "latency_ms": -1, "model": "", "error": error_msg}
 
 
 # ---------------------------------------------------------------------------
