@@ -11,7 +11,7 @@ from app.parsers.base import BaseParser, ParsedDocument, ParsedPage
 _MD_HEADING_RE = re.compile(r"^(#{1,4})\s+(.+)", re.MULTILINE)
 _ENCODINGS = ("utf-8", "utf-8-sig", "gb18030", "gbk", "latin-1")
 
-CHUNK_SIZE = 1500   # characters per logical page
+CHUNK_SIZE = 3000   # 每个逻辑分页的目标字符数（避免页面过碎）
 
 
 def _read_text(path: Path) -> str:
@@ -49,10 +49,12 @@ def _split_into_pages(text: str, file_type: str) -> list[ParsedPage]:
         # Detect Markdown headings for section titles
         if file_type == "md":
             m = _MD_HEADING_RE.match(line)
-            if m and len(m.group(1)) <= 2:   # H1 or H2 only
-                if current:
+            # 仅当已累积足够内容 (>= 2200 字) 遇到新章节时才分页，防止短文被截成只有几句话的碎页
+            if m and len(m.group(1)) <= 2:
+                if current and current_chars >= 2200:
                     flush()
-                current_title = m.group(2).strip()
+                if not current_title:
+                    current_title = m.group(2).strip()
 
         current.append(line)
         current_chars += len(line)

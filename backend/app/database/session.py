@@ -11,7 +11,7 @@ def _get_engine():
     db_path = settings.DATABASE_DIR / "zhiyue.db"
     engine = create_engine(
         f"sqlite:///{db_path}",
-        connect_args={"check_same_thread": False},
+        connect_args={"check_same_thread": False, "timeout": 30.0},
         echo=False,
     )
     # Enable WAL mode for better concurrent read performance

@@ -28,6 +28,7 @@ class SummarizeRequest(BaseModel):
 class InlineActionRequest(BaseModel):
     text: str
     action: str = "explain"  # explain | translate | summarize
+    target_lang: Optional[str] = None  # zh-CN | en | ja | ko | fr | de | es | ru
     context: Optional[str] = None
 
 
@@ -144,28 +145,42 @@ async def inline_action_stream(req: InlineActionRequest):
     if not req.text.strip():
         raise HTTPException(status_code=400, detail="选中文本不能为空")
 
-    # 从用户偏好中读取目标翻译语言
-    target_lang = "通顺优美的现代中文"
-    try:
-        from app.database.session import SessionLocal
-        from app.database.models import AppSetting
-        with SessionLocal() as db:
-            row = db.query(AppSetting).filter(AppSetting.key == "reader_target_lang").first()
-            if row and row.value:
-                lang_map = {
-                    "zh-CN": "通顺优美的现代中文",
-                    "en": "自然地道的现代英文",
-                    "ja": "地道自然的现代日文",
-                    "fr": "优美标准的法文",
-                    "de": "严谨精练的德文",
-                }
-                target_lang = lang_map.get(row.value, "通顺优美的现代中文")
-    except Exception:
-        pass
+    # 解析目标翻译语言（优先采用请求显式指定的语言，否则读取偏好设置）
+    lang_name_map = {
+        "zh-CN": "现代中文",
+        "en": "自然地道的现代英文",
+        "ja": "自然地道的现代日文",
+        "ko": "地道自然的现代韩文",
+        "fr": "优美标准的法文",
+        "de": "严谨精练的德文",
+        "es": "规范标准的西班牙文",
+        "ru": "标准现代俄文",
+    }
+    
+    req_lang_code = req.target_lang
+    if not req_lang_code:
+        try:
+            from app.database.session import SessionLocal
+            from app.database.models import AppSetting
+            with SessionLocal() as db:
+                row = db.query(AppSetting).filter(AppSetting.key == "reader_target_lang").first()
+                if row and row.value:
+                    req_lang_code = row.value
+        except Exception:
+            pass
+
+    target_lang = lang_name_map.get(req_lang_code or "zh-CN", "现代中文")
 
     action_prompts = {
         "explain": "你是一位学识渊博的导师。请深入浅出地解释用户在阅读时选中的这段文字或专业术语，结合上下文说明其通俗含义、背景或应用场景，语言精练生动。",
-        "translate": f"你是一位专业翻译导师。请将用户选中的文本精准翻译为{target_lang}。保持专业语境与术语规范，如果原文已是该语言，则转换为规范的英文。",
+        "translate": (
+            f"你是一位精通多语言互译的专业翻译家。请将用户选中的文本精准翻译为【{target_lang}】。\n"
+            "【输出规范】：\n"
+            "1. 严禁任何客套前缀或解释（绝不要输出'The selected text is...'、'好的'或'翻译如下：'）；\n"
+            "2. 第一行直接呈现最准确、专业、地道的【{target_lang}】译文；\n"
+            "3. 如有重要专业词汇、生僻词或特殊语境用法，可空一行后附带简短精炼的「核心词汇与语境解析」；\n"
+            "4. 符合目标语言的母语地道表达习惯。"
+        ),
         "summarize": "你是一位提炼专家。请用极简短的 1-2 句话概括提取选中文字的核心观点或结论，不加任何冗余修饰词。",
     }
     sys_prompt = action_prompts.get(req.action, action_prompts["explain"])

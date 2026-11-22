@@ -55,9 +55,23 @@ interface HighlightTooltipState {
 interface InlineActionResult {
   show: boolean
   title: string
+  action: 'explain' | 'translate' | 'summarize'
+  selectedText: string
+  targetLang?: string
   content: string
   isStreaming: boolean
 }
+
+const TRANSLATE_LANGUAGES: { code: string; label: string; flag: string }[] = [
+  { code: 'zh-CN', label: '现代中文', flag: '🇨🇳' },
+  { code: 'en', label: '英语', flag: '🇬🇧' },
+  { code: 'ja', label: '日语', flag: '🇯🇵' },
+  { code: 'ko', label: '韩语', flag: '🇰🇷' },
+  { code: 'fr', label: '法语', flag: '🇫🇷' },
+  { code: 'de', label: '德语', flag: '🇩🇪' },
+  { code: 'es', label: '西班牙语', flag: '🇪🇸' },
+  { code: 'ru', label: '俄语', flag: '🇷🇺' },
+]
 
 const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'overall', label: '全局摘要', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
@@ -95,11 +109,27 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [inlineResult, setInlineResult] = useState<InlineActionResult>({
     show: false,
     title: '',
+    action: 'explain',
+    selectedText: '',
     content: '',
     isStreaming: false,
   })
+  const [translateLang, setTranslateLang] = useState('en')
   const [copiedHighlight, setCopiedHighlight] = useState(false)
   const [copiedResult, setCopiedResult] = useState(false)
+
+  // 同步设置中的默认翻译偏好语言
+  useEffect(() => {
+    if (!backendUrl) return
+    fetch(`${backendUrl}/api/v1/settings/overview`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.preferences?.reader_target_lang) {
+          setTranslateLang(data.preferences.reader_target_lang)
+        }
+      })
+      .catch(() => {})
+  }, [backendUrl])
 
   // 划词 AI 弹窗拖拽定位与状态
   const [cardPos, setCardPos] = useState<{ x: number; y: number }>(() => ({
@@ -266,9 +296,15 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   }
 
   // 触发划词 AI 动作 (explain / translate / summarize)
-  const triggerInlineAction = async (action: 'explain' | 'translate' | 'summarize') => {
-    if (!tooltip.selectedText || !backendUrl) return
+  const triggerInlineAction = async (
+    action: 'explain' | 'translate' | 'summarize',
+    overrideLang?: string,
+    overrideText?: string
+  ) => {
+    const textToUse = overrideText || tooltip.selectedText
+    if (!textToUse || !backendUrl) return
 
+    const targetLangCode = overrideLang || translateLang
     const titleMap = {
       explain: '💡 深度原理解读',
       translate: '🌐 语境互译',
@@ -278,6 +314,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     setInlineResult({
       show: true,
       title: titleMap[action],
+      action,
+      selectedText: textToUse,
+      targetLang: targetLangCode,
       content: '',
       isStreaming: true,
     })
@@ -288,8 +327,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          text: tooltip.selectedText,
+          text: textToUse,
           action,
+          target_lang: action === 'translate' ? targetLangCode : undefined,
           context: currentPage?.content ? currentPage.content.slice(0, 300) : undefined,
         }),
       })
@@ -542,9 +582,45 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     <p className="text-sm">暂无内容，请选择已完成解析的文档</p>
                   </div>
                 ) : (
-                  <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal select-text cursor-text">
-                    {currentPage.content}
-                  </article>
+                  <>
+                    <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal select-text cursor-text">
+                      {currentPage.content}
+                    </article>
+
+                    {/* 页面底部多章节流转导航（当文档存在多个分页时显著呈现） */}
+                    {totalPages > 1 && (
+                      <div className="mt-12 pt-6 border-t border-zinc-100 flex items-center justify-between text-xs text-zinc-500 select-none">
+                        <button
+                          onClick={() => setCurrentPageIdx((p) => Math.max(0, p - 1))}
+                          disabled={currentPageIdx <= 0}
+                          className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all flex items-center space-x-1 font-medium"
+                        >
+                          <ChevronLeft className="w-3.5 h-3.5" />
+                          <span>上一章节</span>
+                        </button>
+
+                        <div className="text-center space-y-0.5">
+                          <span className="font-mono text-xs font-semibold text-zinc-700">
+                            第 {currentPageIdx + 1} 页 / 共 {totalPages} 页
+                          </span>
+                          {docContent?.pages?.[currentPageIdx + 1] && (
+                            <div className="text-[11px] text-zinc-400">
+                              下一节：{docContent.pages[currentPageIdx + 1].section_title || `第 ${currentPageIdx + 2} 页`}
+                            </div>
+                          )}
+                        </div>
+
+                        <button
+                          onClick={() => setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))}
+                          disabled={currentPageIdx >= totalPages - 1}
+                          className="px-4 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white disabled:opacity-30 disabled:pointer-events-none active:scale-95 transition-all flex items-center space-x-1 shadow-xs font-medium"
+                        >
+                          <span>下一章节</span>
+                          <ChevronRight className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
             </>
@@ -693,10 +769,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           <button
             onClick={() => triggerInlineAction('translate')}
             className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-blue-300 font-medium"
-            title="中英精准翻译"
+            title={`点击翻译选中文本 (默认 ${TRANSLATE_LANGUAGES.find((l) => l.code === translateLang)?.label || '目标语言'})`}
           >
             <Languages className="w-3.5 h-3.5" />
             <span>翻译</span>
+            <span className="text-[10px] text-blue-200/80 font-normal">
+              ({TRANSLATE_LANGUAGES.find((l) => l.code === translateLang)?.flag || '🇬🇧'})
+            </span>
           </button>
 
           <span className="w-px h-3 bg-white/20" />
@@ -739,6 +818,29 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <Sparkles className="w-4 h-4 text-purple-600" />
               <span>{inlineResult.title}</span>
             </div>
+
+            {/* 若当前为翻译动作，在顶栏提供极速切换目标语言的下拉选择器 */}
+            {inlineResult.action === 'translate' && (
+              <div className="flex items-center space-x-1 bg-blue-50/90 border border-blue-200/70 px-2 py-0.5 rounded-full text-xs font-semibold text-blue-700 shadow-2xs">
+                <Languages className="w-3.5 h-3.5 text-blue-500" />
+                <span className="text-[11px] text-blue-600 font-medium">译为:</span>
+                <select
+                  value={inlineResult.targetLang || translateLang}
+                  onChange={(e) => {
+                    const newLang = e.target.value
+                    setTranslateLang(newLang)
+                    triggerInlineAction('translate', newLang, inlineResult.selectedText)
+                  }}
+                  className="bg-transparent text-xs font-bold text-blue-900 focus:outline-none cursor-pointer pr-1"
+                >
+                  {TRANSLATE_LANGUAGES.map((item) => (
+                    <option key={item.code} value={item.code}>
+                      {item.flag} {item.label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {/* 拖拽指示条 */}
             <div className="flex items-center space-x-1 text-zinc-300 hover:text-zinc-500 transition-colors">

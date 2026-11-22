@@ -101,10 +101,11 @@ def ensure_onboarding_document(db: Session) -> Document | None:
 
 def restore_onboarding_document(db: Session) -> Document:
     """创建或重新导入新手示范文档（支持用户在设置中主动恢复）"""
-    # 检查是否已存在同名文档
+    # 检查是否已存在同名旧示范文档，若存在先安全清除旧记录以便重新解析完整版
     existing = db.query(Document).filter(Document.name == ONBOARDING_FILENAME).first()
     if existing:
-        return existing
+        from app.services.document_service import delete_document
+        delete_document(db, existing.id)
 
     # 写入临时文件并通过标准流程导入
     with tempfile.NamedTemporaryFile("w", suffix=".md", encoding="utf-8", delete=False) as f:
