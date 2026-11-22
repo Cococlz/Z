@@ -129,12 +129,9 @@ function loadApp() {
   if (VITE_DEV_SERVER_URL) {
     win.loadURL(`${VITE_DEV_SERVER_URL}?backendUrl=${encodeURIComponent(backendConfig.baseUrl)}&token=${encodeURIComponent(backendConfig.token)}`)
   } else {
-    win.loadFile(path.join(process.env.DIST as string, 'index.html'), {
-      query: {
-        backendUrl: backendConfig.baseUrl,
-        token: backendConfig.token,
-      },
-    })
+    const indexPath = path.join(process.env.DIST as string, 'index.html')
+    const fileUrl = `file://${indexPath}?backendUrl=${encodeURIComponent(backendConfig.baseUrl)}&token=${encodeURIComponent(backendConfig.token)}`
+    win.loadURL(fileUrl)
   }
 }
 
@@ -149,7 +146,7 @@ function createWindow() {
     trafficLightPosition: { x: 18, y: 18 },
     backgroundColor: '#F2F2F7',
     webPreferences: {
-      preload: path.join(__dirname, 'preload.mjs'),
+      preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: false, // needed for preload IPC

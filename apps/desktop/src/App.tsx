@@ -62,11 +62,13 @@ export default function App() {
           setBackendReady(true)
         }
       } else {
-        // Dev fallback
+        // Dev browser fallback (only if running in external browser on port 5173 without electron)
         const fallback = 'http://127.0.0.1:8000'
-        setBackendUrl(fallback)
-        useDocStore.getState().setBackendUrl(fallback)
-        setBackendReady(true)
+        if (window.location.port === '5173') {
+          setBackendUrl(fallback)
+          useDocStore.getState().setBackendUrl(fallback)
+          setBackendReady(true)
+        }
       }
     }
     init()
