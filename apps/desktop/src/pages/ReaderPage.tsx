@@ -4,6 +4,7 @@ import {
   BookOpen,
   ChevronLeft,
   ChevronRight,
+  ChevronDown,
   FileText,
   Sparkles,
   RefreshCw,
@@ -115,6 +116,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     isStreaming: false,
   })
   const [translateLang, setTranslateLang] = useState('en')
+  const [langDropdownOpen, setLangDropdownOpen] = useState(false)
   const [copiedHighlight, setCopiedHighlight] = useState(false)
   const [copiedResult, setCopiedResult] = useState(false)
 
@@ -207,6 +209,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     const handleGlobalPointerDown = (e: MouseEvent) => {
       const target = e.target as HTMLElement | null
       if (!target) return
+      // 点击语言下拉菜单外部时自动收起下拉
+      if (!target.closest('#zhiyue-lang-selector-container')) {
+        setLangDropdownOpen(false)
+      }
       if (target.closest('#zhiyue-highlight-tooltip') || target.closest('#zhiyue-inline-card')) {
         return
       }
@@ -244,9 +250,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }, [])
 
-  // 开始拖拽 AI 结果卡片
+  // 开始拖拽 AI 结果卡片（排除按钮、选择器与下拉气泡区域）
   const handleCardDragStart = (e: React.MouseEvent) => {
-    if ((e.target as HTMLElement).closest('button')) return
+    const target = e.target as HTMLElement
+    if (
+      target.closest('button') ||
+      target.closest('select') ||
+      target.closest('input') ||
+      target.closest('#zhiyue-lang-selector-container')
+    ) {
+      return
+    }
     e.preventDefault()
     isDraggingRef.current = true
     const cardEl = document.getElementById('zhiyue-inline-card')
@@ -819,26 +833,63 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <span>{inlineResult.title}</span>
             </div>
 
-            {/* 若当前为翻译动作，在顶栏提供极速切换目标语言的下拉选择器 */}
+            {/* 若当前为翻译动作，在顶栏提供极速切换目标语言的 iOS 气泡下拉菜单 */}
             {inlineResult.action === 'translate' && (
-              <div className="flex items-center space-x-1 bg-blue-50/90 border border-blue-200/70 px-2 py-0.5 rounded-full text-xs font-semibold text-blue-700 shadow-2xs">
-                <Languages className="w-3.5 h-3.5 text-blue-500" />
-                <span className="text-[11px] text-blue-600 font-medium">译为:</span>
-                <select
-                  value={inlineResult.targetLang || translateLang}
-                  onChange={(e) => {
-                    const newLang = e.target.value
-                    setTranslateLang(newLang)
-                    triggerInlineAction('translate', newLang, inlineResult.selectedText)
+              <div id="zhiyue-lang-selector-container" className="relative">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setLangDropdownOpen((prev) => !prev)
                   }}
-                  className="bg-transparent text-xs font-bold text-blue-900 focus:outline-none cursor-pointer pr-1"
+                  onMouseDown={(e) => e.stopPropagation()}
+                  className="flex items-center space-x-1.5 bg-blue-50/90 hover:bg-blue-100/90 border border-blue-200/80 px-2.5 py-1 rounded-full text-xs font-semibold text-blue-700 shadow-2xs active:scale-95 transition-all cursor-pointer"
+                  title="点击切换翻译目标语言"
                 >
-                  {TRANSLATE_LANGUAGES.map((item) => (
-                    <option key={item.code} value={item.code}>
-                      {item.flag} {item.label}
-                    </option>
-                  ))}
-                </select>
+                  <Languages className="w-3.5 h-3.5 text-blue-500" />
+                  <span className="text-[11px] text-blue-500 font-normal">译为:</span>
+                  <span className="text-xs font-bold text-blue-900">
+                    {TRANSLATE_LANGUAGES.find((l) => l.code === (inlineResult.targetLang || translateLang))?.flag}{' '}
+                    {TRANSLATE_LANGUAGES.find((l) => l.code === (inlineResult.targetLang || translateLang))?.label}
+                  </span>
+                  <ChevronDown className={`w-3.5 h-3.5 text-blue-500 transition-transform duration-200 ${langDropdownOpen ? 'rotate-180' : ''}`} />
+                </button>
+
+                {/* iOS 风格语言下拉选择气泡菜单 */}
+                {langDropdownOpen && (
+                  <div
+                    id="zhiyue-lang-menu"
+                    onMouseDown={(e) => e.stopPropagation()}
+                    className="absolute left-0 top-full mt-1.5 w-44 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/[0.08] p-1.5 z-50 animate-fade-in space-y-0.5"
+                  >
+                    {TRANSLATE_LANGUAGES.map((item) => {
+                      const isSelected = item.code === (inlineResult.targetLang || translateLang)
+                      return (
+                        <button
+                          key={item.code}
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            setTranslateLang(item.code)
+                            setLangDropdownOpen(false)
+                            triggerInlineAction('translate', item.code, inlineResult.selectedText)
+                          }}
+                          className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-all ${
+                            isSelected
+                              ? 'bg-blue-50 text-blue-700 font-bold'
+                              : 'text-zinc-700 hover:bg-zinc-100 font-medium'
+                          }`}
+                        >
+                          <div className="flex items-center space-x-2">
+                            <span>{item.flag}</span>
+                            <span>{item.label}</span>
+                          </div>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                        </button>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
 
