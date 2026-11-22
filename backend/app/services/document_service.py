@@ -206,6 +206,15 @@ def _parse_in_background(doc_id: str, task_id: str, file_path: Path) -> None:
         _update_task(db, task_id, status="success", progress=100)
         db.commit()
 
+        # Phase 3: 向量索引（在 commit 之后，DB 已持久化 chunks）
+        try:
+            from app.services import rag_service
+            rag_service.index_document(doc_id)
+        except Exception as rag_exc:
+            # RAG 索引失败不影响文档可用性，只记录日志
+            import logging
+            logging.getLogger(__name__).warning("RAG indexing failed for doc %s: %s", doc_id, rag_exc)
+
     except Exception as exc:
         db.rollback()
         err_msg = str(exc)

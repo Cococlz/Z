@@ -11,6 +11,8 @@ from app.core.config import settings
 from app.core.watchdog import start_watchdog
 from app.api.routes import health
 from app.api.routes import documents
+from app.api.routes import chat
+from app.api.routes import settings as settings_route
 from app.database.session import init_db
 
 @asynccontextmanager
@@ -39,6 +41,8 @@ app.add_middleware(
 # Register routes
 app.include_router(health.router, prefix=settings.API_V1_STR, tags=["System"])
 app.include_router(documents.router, prefix=settings.API_V1_STR)
+app.include_router(chat.router)
+app.include_router(settings_route.router)
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
