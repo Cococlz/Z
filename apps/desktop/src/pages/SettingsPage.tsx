@@ -344,7 +344,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             <span className="text-[10px] text-zinc-400 font-normal">支持 DeepSeek · 硅基流动 · Ollama</span>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] overflow-hidden divide-y divide-zinc-100 dark:divide-white/[0.06] transition-colors">
             {/* 1.1 厂商选择 */}
             <div className="p-4 flex items-center space-x-3.5">
               <div className="w-8 h-8 rounded-xl bg-purple-500 flex items-center justify-center text-white shrink-0 shadow-sm">
@@ -352,17 +352,17 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </div>
               <div className="flex-1 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">服务厂商</div>
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">服务厂商</div>
                   <div className="text-xs text-zinc-400">选择推荐服务商或接入本地离线大模型</div>
                 </div>
                 <div className="w-56">
                   <select
                     value={provider}
                     onChange={(e) => handleSelectProvider(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-zinc-700"
+                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500/20 text-zinc-700 dark:text-zinc-100"
                   >
                     {Object.entries(PROVIDER_PRESETS).map(([k, p]) => (
-                      <option key={k} value={k}>
+                      <option key={k} value={k} className="dark:bg-[#2C2C2E]">
                         {p.name}
                       </option>
                     ))}
@@ -378,13 +378,13 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </div>
               <div className="flex-1 space-y-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-zinc-800">API Key 密钥</span>
+                  <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">API Key 密钥</span>
                   {provider === 'ollama' ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 text-purple-600 border border-purple-200/60">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-50 dark:bg-purple-950/40 text-purple-600 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/40">
                       Ollama 本地免密钥
                     </span>
                   ) : isConfigured ? (
-                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 text-emerald-600 border border-emerald-200/60">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800/40">
                       已配置 · {maskedKey}
                     </span>
                   ) : null}
@@ -401,7 +401,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                       placeholder={isConfigured ? '输入新 Key 覆盖现存密钥...' : 'sk-...'}
                       value={apiKey}
                       onChange={(e) => setApiKey(e.target.value)}
-                      className="w-full px-3.5 py-2 text-sm bg-zinc-50 border border-zinc-200/80 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-zinc-400"
+                      className="w-full px-3.5 py-2 text-sm bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200/80 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-zinc-400 text-zinc-800 dark:text-zinc-100"
                     />
                   </div>
                 )}
@@ -415,7 +415,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </div>
               <div className="flex-1 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">模型名称 (Model)</div>
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">模型名称 (Model)</div>
                   <div className="text-xs text-zinc-400">
                     {provider === 'deepseek'
                       ? '推荐 deepseek-chat 或 deepseek-reasoner'
@@ -430,10 +430,10 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                       <select
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
-                        className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700"
+                        className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700 dark:text-zinc-100"
                       >
                         {PROVIDER_PRESETS[provider].models.map((m) => (
-                          <option key={m} value={m}>
+                          <option key={m} value={m} className="dark:bg-[#2C2C2E]">
                             {m}
                           </option>
                         ))}
@@ -444,7 +444,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                       type="text"
                       value={model}
                       onChange={(e) => setModel(e.target.value)}
-                      className="w-full px-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700 font-mono"
+                      className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700 dark:text-zinc-100 font-mono"
                     />
                   )}
                 </div>
@@ -458,7 +458,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </div>
               <div className="flex-1 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">Base URL 端点</div>
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">Base URL 端点</div>
                   <div className="text-xs text-zinc-400">接口请求根路径</div>
                 </div>
                 <div className="w-60">
@@ -466,7 +466,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                     type="text"
                     value={baseUrl}
                     onChange={(e) => setBaseUrl(e.target.value)}
-                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-zinc-700 font-mono"
+                    className="w-full px-3 py-1.5 text-xs bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 text-zinc-700 dark:text-zinc-100 font-mono"
                   />
                 </div>
               </div>
@@ -480,8 +480,8 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               <div className="flex-1 flex items-center justify-between">
                 <div>
                   <div className="flex items-center space-x-2">
-                    <span className="text-sm font-semibold text-zinc-800">生成温度 (Temperature)</span>
-                    <span className="text-xs font-mono font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">
+                    <span className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">生成温度 (Temperature)</span>
+                    <span className="text-xs font-mono font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2 py-0.5 rounded-md">
                       {temperature}
                     </span>
                   </div>
@@ -513,7 +513,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                 type="button"
                 onClick={handleTest}
                 disabled={testing || (provider !== 'ollama' && !isConfigured && !apiKey)}
-                className="px-4 py-2 rounded-full text-xs font-semibold bg-white text-zinc-700 border border-zinc-200 hover:bg-zinc-50 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-1.5"
+                className="px-4 py-2 rounded-full text-xs font-semibold bg-white dark:bg-white/10 text-zinc-700 dark:text-zinc-200 border border-zinc-200 dark:border-white/10 hover:bg-zinc-50 dark:hover:bg-white/15 active:scale-95 transition-all shadow-sm disabled:opacity-50 disabled:pointer-events-none flex items-center space-x-1.5"
               >
                 {testing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Sparkles className="w-3.5 h-3.5 text-blue-500" />}
                 <span>测试连通性</span>
@@ -562,44 +562,44 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             <span className="text-[10px] text-zinc-400 font-normal">Local-First 纯本地私有化</span>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] p-5 space-y-4">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] p-5 space-y-4 transition-colors">
             {/* 存储容量指标卡片网格 */}
             <div className="grid grid-cols-4 gap-3">
-              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+              <div className="bg-[#F2F2F7]/70 dark:bg-white/[0.04] rounded-xl p-3 space-y-1">
                 <div className="text-[11px] text-zinc-400 font-medium">原始文档</div>
-                <div className="text-base font-bold text-zinc-800">
+                <div className="text-base font-bold text-zinc-800 dark:text-zinc-100">
                   {storageStats?.docs_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
                 </div>
                 <div className="text-[10px] text-zinc-500 font-medium">{storageStats?.docs_count || 0} 篇文件</div>
               </div>
 
-              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+              <div className="bg-[#F2F2F7]/70 dark:bg-white/[0.04] rounded-xl p-3 space-y-1">
                 <div className="text-[11px] text-zinc-400 font-medium">向量索引库</div>
-                <div className="text-base font-bold text-purple-600">
+                <div className="text-base font-bold text-purple-600 dark:text-purple-400">
                   {storageStats?.vector_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
                 </div>
                 <div className="text-[10px] text-zinc-500 font-medium">ChromaDB 稠密</div>
               </div>
 
-              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+              <div className="bg-[#F2F2F7]/70 dark:bg-white/[0.04] rounded-xl p-3 space-y-1">
                 <div className="text-[11px] text-zinc-400 font-medium">关系数据库</div>
-                <div className="text-base font-bold text-blue-600">
+                <div className="text-base font-bold text-blue-600 dark:text-blue-400">
                   {storageStats?.database_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
                 </div>
                 <div className="text-[10px] text-zinc-500 font-medium">SQLite WAL</div>
               </div>
 
-              <div className="bg-[#F2F2F7]/70 rounded-xl p-3 space-y-1">
+              <div className="bg-[#F2F2F7]/70 dark:bg-white/[0.04] rounded-xl p-3 space-y-1">
                 <div className="text-[11px] text-zinc-400 font-medium">磁盘总占用</div>
-                <div className="text-base font-bold text-zinc-900">
+                <div className="text-base font-bold text-zinc-900 dark:text-white">
                   {storageStats?.total_size_mb || 0} <span className="text-[11px] font-normal text-zinc-400">MB</span>
                 </div>
-                <div className="text-[10px] text-emerald-600 font-medium">100% 本地持有</div>
+                <div className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium">100% 本地持有</div>
               </div>
             </div>
 
             {/* 本地目录路径说明 */}
-            <div className="flex items-center justify-between text-xs bg-zinc-50 border border-zinc-100 px-3.5 py-2.5 rounded-xl font-mono text-zinc-600">
+            <div className="flex items-center justify-between text-xs bg-zinc-50 dark:bg-white/[0.03] border border-zinc-100 dark:border-white/[0.08] px-3.5 py-2.5 rounded-xl font-mono text-zinc-600 dark:text-zinc-300">
               <div className="flex items-center space-x-2 truncate mr-3">
                 <HardDrive className="w-4 h-4 text-zinc-400 shrink-0" />
                 <span className="truncate" title={storageStats?.app_data_dir}>
@@ -609,7 +609,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               <button
                 onClick={handleOpenInFinder}
                 disabled={actionLoading === 'finder'}
-                className="px-3 py-1 bg-white border border-zinc-200 rounded-lg font-sans font-semibold text-blue-600 hover:bg-blue-50 active:scale-95 transition-all text-xs shrink-0 flex items-center space-x-1 shadow-2xs"
+                className="px-3 py-1 bg-white dark:bg-white/10 border border-zinc-200 dark:border-white/10 rounded-lg font-sans font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/15 active:scale-95 transition-all text-xs shrink-0 flex items-center space-x-1 shadow-2xs"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
                 <span>在 Finder 中打开</span>
@@ -621,7 +621,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               <button
                 onClick={handleClearCache}
                 disabled={actionLoading === 'cache'}
-                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/15 active:scale-95 transition-all font-medium text-zinc-700 dark:text-zinc-200 flex items-center space-x-1.5"
               >
                 {actionLoading === 'cache' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5 text-zinc-500" />}
                 <span>清理临时缓存</span>
@@ -630,7 +630,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               <button
                 onClick={handleReindex}
                 disabled={actionLoading === 'reindex'}
-                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/15 active:scale-95 transition-all font-medium text-zinc-700 dark:text-zinc-200 flex items-center space-x-1.5"
               >
                 {actionLoading === 'reindex' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RefreshCw className="w-3.5 h-3.5 text-purple-600" />}
                 <span>全量重建向量索引</span>
@@ -639,7 +639,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               <button
                 onClick={handleRestoreOnboarding}
                 disabled={actionLoading === 'onboarding'}
-                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 hover:bg-zinc-200 active:scale-95 transition-all font-medium text-zinc-700 flex items-center space-x-1.5"
+                className="px-3.5 py-1.5 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/15 active:scale-95 transition-all font-medium text-zinc-700 dark:text-zinc-200 flex items-center space-x-1.5"
               >
                 {actionLoading === 'onboarding' ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <BookOpen className="w-3.5 h-3.5 text-blue-600" />}
                 <span>重置/导入新手实操指南</span>
@@ -656,7 +656,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             阅读与划词偏好
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] overflow-hidden divide-y divide-zinc-100 dark:divide-white/[0.06] transition-colors">
             {/* 3.1 划词翻译默认目标语言 */}
             <div className="p-4 flex items-center space-x-3.5">
               <div className="w-8 h-8 rounded-xl bg-blue-500 flex items-center justify-center text-white shrink-0 shadow-sm">
@@ -664,33 +664,33 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
               </div>
               <div className="flex-1 flex items-center justify-between">
                 <div>
-                  <div className="text-sm font-semibold text-zinc-800">划词翻译目标语言</div>
+                  <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">划词翻译目标语言</div>
                   <div className="text-xs text-zinc-400">在正文或伴读区划词点击「翻译」时的优先目标语种</div>
                 </div>
                 <div className="w-48">
                   <select
                     value={targetLang}
                     onChange={(e) => handleSavePreferences(e.target.value, fontSize)}
-                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 border border-zinc-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700"
+                    className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 text-zinc-700 dark:text-zinc-100"
                   >
-                    <option value="zh-CN">简体中文 (Chinese)</option>
-                    <option value="en">现代英文 (English)</option>
-                    <option value="ja">自然日文 (Japanese)</option>
-                    <option value="fr">优美法文 (French)</option>
-                    <option value="de">严谨德文 (German)</option>
+                    <option value="zh-CN" className="dark:bg-[#2C2C2E]">简体中文 (Chinese)</option>
+                    <option value="en" className="dark:bg-[#2C2C2E]">现代英文 (English)</option>
+                    <option value="ja" className="dark:bg-[#2C2C2E]">自然日文 (Japanese)</option>
+                    <option value="fr" className="dark:bg-[#2C2C2E]">优美法文 (French)</option>
+                    <option value="de" className="dark:bg-[#2C2C2E]">严谨德文 (German)</option>
                   </select>
                 </div>
               </div>
             </div>
 
             {/* 3.2 划词浮窗操作提示 */}
-            <div className="p-4 flex items-center space-x-3.5 bg-purple-50/40">
+            <div className="p-4 flex items-center space-x-3.5 bg-purple-50/40 dark:bg-purple-950/20">
               <div className="w-8 h-8 rounded-xl bg-purple-600 flex items-center justify-center text-white shrink-0 shadow-sm">
                 <Sparkles className="w-4 h-4" />
               </div>
               <div className="flex-1">
-                <div className="text-sm font-semibold text-zinc-800">浮窗自由拖拽特性</div>
-                <div className="text-xs text-zinc-500 mt-0.5">
+                <div className="text-sm font-semibold text-zinc-800 dark:text-zinc-100">浮窗自由拖拽特性</div>
+                <div className="text-xs text-zinc-500 dark:text-zinc-400 mt-0.5">
                   划词呼出的 AI 解答卡片支持按住顶栏随心拖动到屏幕任意位置，防止遮挡原文，并自动记忆摆放位置。
                 </div>
               </div>
@@ -707,7 +707,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             <span>使用小贴士与常见解答 (FAQ)</span>
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] overflow-hidden divide-y divide-zinc-100">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] overflow-hidden divide-y divide-zinc-100 dark:divide-white/[0.06] transition-colors">
             {[
               {
                 q: '如何获取并配置 DeepSeek API Key？',
@@ -728,16 +728,16 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             ].map((faq, idx) => {
               const isOpen = expandedFaq === idx
               return (
-                <div key={idx} className="transition-colors hover:bg-zinc-50/50">
+                <div key={idx} className="transition-colors hover:bg-zinc-50/50 dark:hover:bg-white/[0.02]">
                   <button
                     onClick={() => setExpandedFaq(isOpen ? null : idx)}
-                    className="w-full p-4 flex items-center justify-between text-left text-xs font-semibold text-zinc-800"
+                    className="w-full p-4 flex items-center justify-between text-left text-xs font-semibold text-zinc-800 dark:text-zinc-100"
                   >
                     <span>{faq.q}</span>
                     {isOpen ? <ChevronUp className="w-4 h-4 text-zinc-400" /> : <ChevronDown className="w-4 h-4 text-zinc-400" />}
                   </button>
                   {isOpen && (
-                    <div className="px-4 pb-4 text-xs text-zinc-600 leading-relaxed whitespace-pre-line border-t border-zinc-50 pt-2 animate-fade-in bg-zinc-50/30">
+                    <div className="px-4 pb-4 text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed whitespace-pre-line border-t border-zinc-50 dark:border-white/[0.04] pt-2 animate-fade-in bg-zinc-50/30 dark:bg-white/[0.02]">
                       {faq.a}
                     </div>
                   )}
@@ -755,24 +755,24 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             关于智阅 AI 与运行环境
           </div>
 
-          <div className="bg-white rounded-2xl shadow-sm border border-black/[0.04] p-5 space-y-3 text-xs text-zinc-600">
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] p-5 space-y-3 text-xs text-zinc-600 dark:text-zinc-300 transition-colors">
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800">应用版本</span>
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">应用版本</span>
               <span className="font-mono text-zinc-500">v{systemInfo?.version || '1.0.0'} (Desktop Edition)</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800">系统架构</span>
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">系统架构</span>
               <span className="font-mono text-zinc-500">{systemInfo?.arch || 'macOS (arm64)'}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800">本地离线向量引擎</span>
-              <span className="font-mono text-purple-600 bg-purple-50 px-2 py-0.5 rounded-md">
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">本地离线向量引擎</span>
+              <span className="font-mono text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-950/40 px-2 py-0.5 rounded-md">
                 {systemInfo?.fastembed_model || 'BAAI/bge-small-zh-v1.5 (已就绪)'}
               </span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="font-semibold text-zinc-800">内核通信</span>
-              <span className="inline-flex items-center space-x-1 text-emerald-600">
+              <span className="font-semibold text-zinc-800 dark:text-zinc-100">内核通信</span>
+              <span className="inline-flex items-center space-x-1 text-emerald-600 dark:text-emerald-400">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 inline-block animate-pulse" />
                 <span>Python IPC 守护线程在线</span>
               </span>

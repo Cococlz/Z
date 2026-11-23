@@ -1273,24 +1273,24 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideEmptyIcon: 'bg-zinc-100 text-zinc-400',
       asideEmptyText: 'text-zinc-400',
       // 正文排版与重点强调 (亮白主题)
-      taskBadge: 'bg-purple-100 text-purple-700 border border-purple-200/60 shadow-2xs',
+      taskBadge: 'bg-purple-50 text-purple-700 border border-purple-200/60 shadow-2xs',
       taskTitle: 'text-purple-950 font-bold',
       taskHeaderBorder: 'border-black/[0.06]',
-      listBadge: 'bg-purple-100 text-purple-700 font-bold border border-purple-200/50 shadow-2xs',
+      listBadge: 'bg-purple-50 text-purple-700 font-bold border border-purple-200/50 shadow-2xs',
       listLeadBold: 'text-purple-900 font-bold',
       listRestText: 'text-zinc-700',
       codeCardBg: 'bg-[#F8F9FB] border-black/[0.08]',
-      codeCardHeader: 'bg-[#EEF1F6] text-purple-700 border-black/[0.05]',
+      codeCardHeader: 'bg-[#EEF1F6] text-zinc-700 border-black/[0.05]',
       codeCardText: 'text-zinc-900',
-      // AI 伴读结构化 Markdown 样式 (亮白主题)
-      mdH1: 'text-purple-950 bg-purple-50/80 border-purple-200/60',
-      mdH2: 'text-purple-900 border-b border-black/[0.06]',
+      // AI 伴读结构化 Markdown 样式 (亮白主题 - 典雅清爽)
+      mdH1: 'text-zinc-900 bg-purple-50/50 border-purple-200/50',
+      mdH2: 'text-zinc-900 border-b border-black/[0.06]',
       mdH2Badge: 'bg-purple-100 text-purple-700',
-      mdH3: 'text-indigo-800',
-      mdStrong: 'text-purple-900 bg-purple-100/70',
-      mdCode: 'text-pink-600 bg-pink-50 border-pink-200/60',
+      mdH3: 'text-zinc-800',
+      mdStrong: 'text-purple-950 font-bold bg-purple-50 px-1 py-0.5 rounded border border-purple-100/70',
+      mdCode: 'text-purple-800 bg-purple-50/80 border border-purple-200/50',
       mdLi: 'text-zinc-700',
-      mdBullet: 'bg-purple-500',
+      mdBullet: 'bg-purple-500/80',
       // 浮窗与批注弹窗
       modalContainer: 'bg-white/95 border-black/[0.08] text-zinc-800',
       modalHeader: 'border-zinc-100 text-zinc-800',
@@ -1412,25 +1412,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-[#1C1C1E]/80 text-[#C7C7CC] border-white/[0.04]',
       asideEmptyIcon: 'bg-[#2C2C2E] text-[#8E8E93]',
       asideEmptyText: 'text-[#8E8E93]',
-      // 正文排版与重点强调 (深邃暗黑主题)
-      taskBadge: 'bg-purple-950/80 text-purple-300 border border-purple-800/60 shadow-2xs',
-      taskTitle: 'text-purple-100 font-bold',
+      // 正文排版与重点强调 (深邃暗黑主题 - 克制柔和学术级色系)
+      taskBadge: 'bg-white/[0.08] text-purple-200 border border-purple-500/25 shadow-2xs',
+      taskTitle: 'text-zinc-100 font-bold',
       taskHeaderBorder: 'border-white/[0.08]',
-      listBadge: 'bg-purple-950/80 text-purple-300 font-bold border border-purple-800/60 shadow-2xs',
-      listLeadBold: 'text-purple-200 font-bold',
+      listBadge: 'bg-white/[0.06] text-purple-200/90 font-bold border border-white/[0.08] shadow-2xs',
+      listLeadBold: 'text-purple-200/95 font-bold',
       listRestText: 'text-zinc-300',
       codeCardBg: 'bg-[#18181A] border-white/[0.08]',
-      codeCardHeader: 'bg-[#222225] text-purple-300 border-white/[0.06]',
+      codeCardHeader: 'bg-[#222225] text-zinc-300 border-white/[0.06]',
       codeCardText: 'text-zinc-200',
-      // AI 伴读结构化 Markdown 样式 (深邃暗黑主题)
-      mdH1: 'text-purple-200 bg-purple-950/40 border-purple-800/50',
-      mdH2: 'text-purple-200 border-b border-white/[0.08]',
-      mdH2Badge: 'bg-purple-900/60 text-purple-300',
-      mdH3: 'text-indigo-300',
-      mdStrong: 'text-purple-200 bg-purple-900/50',
-      mdCode: 'text-pink-300 bg-pink-950/50 border-pink-800/50',
+      // AI 伴读结构化 Markdown 样式 (深邃暗黑主题 - 优雅护眼，绝无刺眼荧光粉)
+      mdH1: 'text-zinc-100 bg-white/[0.03] border-white/[0.08]',
+      mdH2: 'text-zinc-100 border-b border-white/[0.08]',
+      mdH2Badge: 'bg-white/[0.08] text-purple-300 border border-white/[0.08]',
+      mdH3: 'text-zinc-300',
+      mdStrong: 'text-white font-bold bg-white/[0.08] px-1.5 py-0.5 rounded border border-white/[0.06]',
+      mdCode: 'text-purple-200/95 bg-white/[0.06] border border-white/[0.08]',
       mdLi: 'text-[#D1D1D6]',
-      mdBullet: 'bg-purple-400',
+      mdBullet: 'bg-purple-400/60',
       // 浮窗与批注弹窗
       modalContainer: 'bg-[#1C1C1E]/95 border-white/[0.1] text-[#E5E5EA]',
       modalHeader: 'border-white/[0.08] text-[#E5E5EA]',
@@ -1459,20 +1459,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   return (
     <div className={`flex-1 flex flex-col ${themeStyles.pageBg} h-screen overflow-hidden selection:bg-purple-100 relative transition-colors duration-200`}>
       
-      {/* 顶部毛玻璃导航条 */}
+      {/* 顶部毛玻璃导航条：Apple HIG 三段式极简架构 */}
       <header className={`h-14 backdrop-blur-xl border-b px-6 flex items-center justify-between shrink-0 z-10 transition-colors duration-200 ${themeStyles.header}`}>
         
-        {/* 文档选择下拉框与目录大纲抽屉开关 */}
-        <div className="flex items-center space-x-3">
-          <div className="w-7 h-7 rounded-lg bg-purple-500/10 flex items-center justify-center text-purple-600">
-            <BookOpen className="w-4 h-4" />
-          </div>
+        {/* 左区：文档选择与目录侧栏切换 */}
+        <div className="flex items-center space-x-2.5">
           <div className="flex items-center space-x-1.5">
-            <span className="text-xs font-semibold text-zinc-400">阅读文档:</span>
+            <BookOpen className="w-4 h-4 text-purple-500 shrink-0" />
             <select
               value={selectedDocId}
               onChange={(e) => setSelectedDocId(e.target.value)}
-              className={`px-2.5 py-1 text-xs font-bold rounded-full focus:outline-none cursor-pointer transition-all max-w-[280px] truncate ${themeStyles.headerSelect}`}
+              className={`px-3 py-1.5 text-xs font-bold rounded-full focus:outline-none cursor-pointer transition-all max-w-[260px] truncate border border-black/[0.04] dark:border-white/[0.08] shadow-2xs ${themeStyles.headerSelect}`}
             >
               {documents.map((d) => (
                 <option key={d.id} value={d.id} disabled={d.status !== 'indexed'}>
@@ -1482,25 +1479,23 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </select>
           </div>
 
-          {/* 目录大纲抽屉开关按钮 */}
+          {/* 目录开关按钮 */}
           {readViewMode === 'extracted' && (
             <button
               onClick={() => setShowTocDrawer((prev) => !prev)}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all shadow-2xs ${
+              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all border border-black/[0.04] dark:border-white/[0.08] shadow-2xs ${
                 showTocDrawer
-                  ? 'bg-purple-600 text-white shadow-purple-500/20'
+                  ? appTheme === 'dark'
+                    ? 'bg-purple-500/20 text-purple-300 border-purple-500/40'
+                    : 'bg-purple-100 text-purple-800 border-purple-200'
                   : themeStyles.headerBtn
               }`}
               title="展开/收起目录大纲树"
             >
-              <ListTree className="w-3.5 h-3.5" />
-              <span>目录大纲</span>
+              <ListTree className="w-3.5 h-3.5 opacity-80" />
+              <span>目录</span>
               {docContent?.toc && docContent.toc.length > 0 && (
-                <span
-                  className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full ${
-                    showTocDrawer ? 'bg-white/20 text-white' : 'bg-black/10 text-current'
-                  }`}
-                >
+                <span className="text-[10px] font-mono opacity-60">
                   {docContent.toc.length}
                 </span>
               )}
@@ -1508,249 +1503,252 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           )}
         </div>
 
-        {/* 核心双重视图切换控制器、Apple Books 排版与翻页 */}
-        <div className="flex items-center space-x-3">
-          {/* 排版与主题控制按钮 (Apple Books aA 风格) */}
-          {readViewMode === 'extracted' && (
-            <div className="relative" id="zhiyue-typography-btn-container">
-              <button
-                onClick={() => setShowAppearanceMenu((prev) => !prev)}
-                className={`px-3 py-1.5 rounded-2xl text-xs font-semibold flex items-center space-x-1.5 transition-all border ${
-                  showAppearanceMenu
-                    ? 'bg-purple-50 border-purple-300 text-purple-700'
-                    : themeStyles.headerBtn
-                }`}
-                title="阅读排版与主题设置"
-              >
-                <Type className="w-3.5 h-3.5 opacity-70" />
-                <span className="font-serif font-bold text-xs tracking-tight">aA</span>
-              </button>
-
-              {/* 弹出式排版控制卡片 */}
-              {showAppearanceMenu && (
-                <div
-                  id="zhiyue-appearance-menu"
-                  className={`absolute right-0 top-11 w-72 backdrop-blur-2xl rounded-2xl shadow-xl border p-4 z-50 space-y-4 text-xs animate-in fade-in slide-in-from-top-2 select-none ${
-                    appTheme === 'dark'
-                      ? 'bg-[#242426]/95 border-white/[0.08] text-[#E5E5EA]'
-                      : appTheme === 'sepia'
-                      ? 'bg-[#FAF4E8]/95 border-[#E8DEC8] text-[#3D3024]'
-                      : 'bg-white/95 border-black/[0.08] text-zinc-800'
-                  }`}
-                >
-                  {/* 主题选择 */}
-                  <div>
-                    <div className="text-[11px] font-bold opacity-60 mb-2">阅读主题</div>
-                    <div className="grid grid-cols-3 gap-2">
-                      <button
-                        onClick={() => updateAppearance({ theme: 'white' })}
-                        className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appTheme === 'white'
-                            ? 'border-purple-500 bg-zinc-50 shadow-xs ring-1 ring-purple-500'
-                            : 'border-zinc-200 hover:border-zinc-300 bg-white'
-                        }`}
-                      >
-                        <div className="w-5 h-5 rounded-full bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
-                          {appTheme === 'white' && <Check className="w-3 h-3 text-purple-600" />}
-                        </div>
-                        <span className="text-[11px] font-semibold text-zinc-800">纯白</span>
-                      </button>
-
-                      <button
-                        onClick={() => updateAppearance({ theme: 'sepia' })}
-                        className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appTheme === 'sepia'
-                            ? 'border-purple-500 bg-[#FAF4E8] shadow-xs ring-1 ring-purple-500'
-                            : 'border-[#E8DEC8] hover:border-[#D8C7AA] bg-[#FAF4E8]'
-                        }`}
-                      >
-                        <div className="w-5 h-5 rounded-full bg-[#FAF4E8] border border-[#D8C7AA] shadow-2xs flex items-center justify-center">
-                          {appTheme === 'sepia' && <Check className="w-3 h-3 text-[#965A2C]" />}
-                        </div>
-                        <span className="text-[11px] font-semibold text-[#5B4126]">羊皮纸</span>
-                      </button>
-
-                      <button
-                        onClick={() => updateAppearance({ theme: 'dark' })}
-                        className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appTheme === 'dark'
-                            ? 'border-purple-500 bg-[#1C1C1E] shadow-xs ring-1 ring-purple-500'
-                            : 'border-zinc-700 hover:border-zinc-600 bg-[#1C1C1E]'
-                        }`}
-                      >
-                        <div className="w-5 h-5 rounded-full bg-[#1C1C1E] border border-zinc-600 shadow-2xs flex items-center justify-center">
-                          {appTheme === 'dark' && <Check className="w-3 h-3 text-purple-400" />}
-                        </div>
-                        <span className="text-[11px] font-semibold text-zinc-200">夜间</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 字号大小 */}
-                  <div>
-                    <div className="flex items-center justify-between text-[11px] font-bold opacity-60 mb-2">
-                      <span>正文字号</span>
-                      <span className="font-mono">
-                        {{ sm: '小 (14px)', base: '标准 (16px)', lg: '大 (18px)', xl: '特大 (20px)' }[appearance.fontSize]}
-                      </span>
-                    </div>
-                    <div className={`grid grid-cols-4 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
-                    }`}>
-                      {(['sm', 'base', 'lg', 'xl'] as ReaderFontSize[]).map((size) => (
-                        <button
-                          key={size}
-                          onClick={() => updateAppearance({ fontSize: size })}
-                          className={`py-1.5 rounded-lg text-xs transition-all ${
-                            appearance.fontSize === size
-                              ? appTheme === 'dark'
-                                ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                                : appTheme === 'sepia'
-                                ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
-                                : 'bg-white text-zinc-900 shadow-xs font-bold'
-                              : 'opacity-60 hover:opacity-100'
-                          }`}
-                        >
-                          {{ sm: 'A-', base: '标准', lg: '大', xl: 'A+' }[size]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* 字体风格 */}
-                  <div>
-                    <div className="text-[11px] font-bold opacity-60 mb-2">字体系列</div>
-                    <div className={`grid grid-cols-2 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
-                    }`}>
-                      <button
-                        onClick={() => updateAppearance({ fontFamily: 'sans' })}
-                        className={`py-1.5 rounded-lg text-xs transition-all ${
-                          appearance.fontFamily === 'sans'
-                            ? appTheme === 'dark'
-                              ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                              : appTheme === 'sepia'
-                              ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
-                              : 'bg-white text-zinc-900 shadow-xs font-bold'
-                            : 'opacity-60 hover:opacity-100'
-                        }`}
-                      >
-                        黑体 (无衬线)
-                      </button>
-                      <button
-                        onClick={() => updateAppearance({ fontFamily: 'serif' })}
-                        className={`py-1.5 rounded-lg text-xs font-serif transition-all ${
-                          appearance.fontFamily === 'serif'
-                            ? appTheme === 'dark'
-                              ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                              : appTheme === 'sepia'
-                              ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
-                              : 'bg-white text-zinc-900 shadow-xs font-bold'
-                            : 'opacity-60 hover:opacity-100'
-                        }`}
-                      >
-                        宋体 (衬线)
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* 行间距 */}
-                  <div>
-                    <div className="text-[11px] font-bold opacity-60 mb-2">段落行距</div>
-                    <div className={`grid grid-cols-3 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
-                    }`}>
-                      {(['normal', 'relaxed', 'loose'] as ReaderLineHeight[]).map((lh) => (
-                        <button
-                          key={lh}
-                          onClick={() => updateAppearance({ lineHeight: lh })}
-                          className={`py-1.5 rounded-lg text-xs transition-all ${
-                            appearance.lineHeight === lh
-                              ? appTheme === 'dark'
-                                ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                                : appTheme === 'sepia'
-                                ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
-                                : 'bg-white text-zinc-900 shadow-xs font-bold'
-                              : 'opacity-60 hover:opacity-100'
-                          }`}
-                        >
-                          {{ normal: '紧凑', relaxed: '舒适', loose: '宽松' }[lh]}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* 核心双重视图切换控制器 (精读排版 vs 原版版式) */}
-          <div className={`flex items-center p-1 rounded-2xl gap-1 text-xs font-semibold ${themeStyles.viewTrack}`}>
+        {/* 中区：视图模式、排版与翻页整合工具条 */}
+        <div className="flex items-center space-x-2.5">
+          {/* 视图模式与 aA 排版聚合分段槽 */}
+          <div className={`flex items-center p-1 rounded-full border border-black/[0.04] dark:border-white/[0.08] shadow-2xs ${themeStyles.viewTrack}`}>
             <button
               onClick={() => setReadViewMode('extracted')}
-              className={`flex items-center space-x-1 px-3 py-1 rounded-xl transition-all ${
+              className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 readViewMode === 'extracted'
                   ? themeStyles.viewActive
                   : themeStyles.viewInactive
               }`}
             >
-              <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+              <Sparkles className="w-3.5 h-3.5 text-purple-400" />
               <span>精读排版</span>
             </button>
 
             <button
               onClick={() => setReadViewMode('native')}
-              className={`flex items-center space-x-1 px-3 py-1 rounded-xl transition-all ${
+              className={`flex items-center space-x-1 px-3 py-1 rounded-full text-xs font-medium transition-all ${
                 readViewMode === 'native'
                   ? themeStyles.viewActive
                   : themeStyles.viewInactive
               }`}
             >
-              <FileSearch className="w-3.5 h-3.5 text-blue-500" />
-              <span>原版图文对照</span>
+              <FileSearch className="w-3.5 h-3.5 text-blue-400" />
+              <span>原版对照</span>
             </button>
+
+            {/* 排版 aA 触发器（仅精读可用） */}
+            {readViewMode === 'extracted' && (
+              <>
+                <span className="w-px h-3.5 bg-black/10 dark:bg-white/10 mx-1" />
+                <div className="relative" id="zhiyue-typography-btn-container">
+                  <button
+                    onClick={() => setShowAppearanceMenu((prev) => !prev)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-serif font-bold tracking-tight transition-all flex items-center space-x-1 ${
+                      showAppearanceMenu ? themeStyles.viewActive : themeStyles.viewInactive
+                    }`}
+                    title="排版与主题设置"
+                  >
+                    <Type className="w-3 h-3 opacity-70" />
+                    <span>aA</span>
+                  </button>
+
+                  {/* 弹出式排版控制卡片 */}
+                  {showAppearanceMenu && (
+                    <div
+                      id="zhiyue-appearance-menu"
+                      className={`absolute left-1/2 -translate-x-1/2 top-10 w-72 backdrop-blur-2xl rounded-2xl shadow-xl border p-4 z-50 space-y-4 text-xs animate-in fade-in slide-in-from-top-2 select-none ${
+                        appTheme === 'dark'
+                          ? 'bg-[#242426]/95 border-white/[0.08] text-[#E5E5EA]'
+                          : appTheme === 'sepia'
+                          ? 'bg-[#FAF4E8]/95 border-[#E8DEC8] text-[#3D3024]'
+                          : 'bg-white/95 border-black/[0.08] text-zinc-800'
+                      }`}
+                    >
+                      {/* 主题选择 */}
+                      <div>
+                        <div className="text-[11px] font-bold opacity-60 mb-2">阅读主题</div>
+                        <div className="grid grid-cols-3 gap-2">
+                          <button
+                            onClick={() => updateAppearance({ theme: 'white' })}
+                            className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
+                              appTheme === 'white'
+                                ? 'border-purple-500 bg-zinc-50 shadow-xs ring-1 ring-purple-500'
+                                : 'border-zinc-200 hover:border-zinc-300 bg-white'
+                            }`}
+                          >
+                            <div className="w-5 h-5 rounded-full bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
+                              {appTheme === 'white' && <Check className="w-3 h-3 text-purple-600" />}
+                            </div>
+                            <span className="text-[11px] font-semibold text-zinc-800">纯白</span>
+                          </button>
+
+                          <button
+                            onClick={() => updateAppearance({ theme: 'sepia' })}
+                            className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
+                              appTheme === 'sepia'
+                                ? 'border-purple-500 bg-[#FAF4E8] shadow-xs ring-1 ring-purple-500'
+                                : 'border-[#E8DEC8] hover:border-[#D8C7AA] bg-[#FAF4E8]'
+                            }`}
+                          >
+                            <div className="w-5 h-5 rounded-full bg-[#FAF4E8] border border-[#D8C7AA] shadow-2xs flex items-center justify-center">
+                              {appTheme === 'sepia' && <Check className="w-3 h-3 text-[#965A2C]" />}
+                            </div>
+                            <span className="text-[11px] font-semibold text-[#5B4126]">羊皮纸</span>
+                          </button>
+
+                          <button
+                            onClick={() => updateAppearance({ theme: 'dark' })}
+                            className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
+                              appTheme === 'dark'
+                                ? 'border-purple-500 bg-[#1C1C1E] shadow-xs ring-1 ring-purple-500'
+                                : 'border-zinc-700 hover:border-zinc-600 bg-[#1C1C1E]'
+                            }`}
+                          >
+                            <div className="w-5 h-5 rounded-full bg-[#1C1C1E] border border-zinc-600 shadow-2xs flex items-center justify-center">
+                              {appTheme === 'dark' && <Check className="w-3 h-3 text-purple-400" />}
+                            </div>
+                            <span className="text-[11px] font-semibold text-zinc-200">夜间</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 字号大小 */}
+                      <div>
+                        <div className="flex items-center justify-between text-[11px] font-bold opacity-60 mb-2">
+                          <span>正文字号</span>
+                          <span className="font-mono">
+                            {{ sm: '小 (14px)', base: '标准 (16px)', lg: '大 (18px)', xl: '特大 (20px)' }[appearance.fontSize]}
+                          </span>
+                        </div>
+                        <div className={`grid grid-cols-4 p-1 rounded-xl gap-1 font-semibold text-center ${
+                          appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                        }`}>
+                          {(['sm', 'base', 'lg', 'xl'] as ReaderFontSize[]).map((size) => (
+                            <button
+                              key={size}
+                              onClick={() => updateAppearance({ fontSize: size })}
+                              className={`py-1.5 rounded-lg text-xs transition-all ${
+                                appearance.fontSize === size
+                                  ? appTheme === 'dark'
+                                    ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
+                                    : appTheme === 'sepia'
+                                    ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
+                                    : 'bg-white text-zinc-900 shadow-xs font-bold'
+                                  : 'opacity-60 hover:opacity-100'
+                              }`}
+                            >
+                              {{ sm: 'A-', base: '标准', lg: '大', xl: 'A+' }[size]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* 字体风格 */}
+                      <div>
+                        <div className="text-[11px] font-bold opacity-60 mb-2">字体系列</div>
+                        <div className={`grid grid-cols-2 p-1 rounded-xl gap-1 font-semibold text-center ${
+                          appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                        }`}>
+                          <button
+                            onClick={() => updateAppearance({ fontFamily: 'sans' })}
+                            className={`py-1.5 rounded-lg text-xs transition-all ${
+                              appearance.fontFamily === 'sans'
+                                ? appTheme === 'dark'
+                                : appTheme === 'sepia'
+                                ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
+                                : 'bg-white text-zinc-900 shadow-xs font-bold'
+                            }`}
+                          >
+                            黑体 (无衬线)
+                          </button>
+                          <button
+                            onClick={() => updateAppearance({ fontFamily: 'serif' })}
+                            className={`py-1.5 rounded-lg text-xs font-serif transition-all ${
+                              appearance.fontFamily === 'serif'
+                                ? appTheme === 'dark'
+                                  ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
+                                  : appTheme === 'sepia'
+                                  ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
+                                  : 'bg-white text-zinc-900 shadow-xs font-bold'
+                                : 'opacity-60 hover:opacity-100'
+                            }`}
+                          >
+                            宋体 (衬线)
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* 行间距 */}
+                      <div>
+                        <div className="text-[11px] font-bold opacity-60 mb-2">段落行距</div>
+                        <div className={`grid grid-cols-3 p-1 rounded-xl gap-1 font-semibold text-center ${
+                          appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                        }`}>
+                          {(['normal', 'relaxed', 'loose'] as ReaderLineHeight[]).map((lh) => (
+                            <button
+                              key={lh}
+                              onClick={() => updateAppearance({ lineHeight: lh })}
+                              className={`py-1.5 rounded-lg text-xs transition-all ${
+                                appearance.lineHeight === lh
+                                  ? appTheme === 'dark'
+                                    ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
+                                    : appTheme === 'sepia'
+                                    ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
+                                    : 'bg-white text-zinc-900 shadow-xs font-bold'
+                                  : 'opacity-60 hover:opacity-100'
+                              }`}
+                            >
+                              {{ normal: '紧凑', relaxed: '舒适', loose: '宽松' }[lh]}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
 
-          {/* 翻页器（仅在精读排版模式下显示） */}
+          {/* 翻页控制器 */}
           {readViewMode === 'extracted' && totalPages > 0 && (
-            <div className="flex items-center space-x-2">
-              <div className={`flex items-center p-0.5 rounded-full border shadow-2xs ${themeStyles.headerBtn}`}>
-                <button
-                  onClick={() => setCurrentPageIdx((p) => Math.max(0, p - 1))}
-                  disabled={currentPageIdx <= 0}
-                  className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all opacity-80 hover:opacity-100"
-                  title="上一页"
-                >
-                  <ChevronLeft className="w-4 h-4" />
-                </button>
+            <div className={`flex items-center p-0.5 rounded-full border border-black/[0.04] dark:border-white/[0.08] shadow-2xs ${themeStyles.viewTrack}`}>
+              <button
+                onClick={() => setCurrentPageIdx((p) => Math.max(0, p - 1))}
+                disabled={currentPageIdx <= 0}
+                className="w-6 h-6 rounded-full flex items-center justify-center disabled:opacity-20 active:scale-90 transition-all opacity-70 hover:opacity-100"
+                title="上一页"
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+              </button>
 
-                <span className={`px-2.5 text-xs font-mono font-semibold select-none ${themeStyles.pageInfo}`}>
-                  {currentPageIdx + 1} / {totalPages}
-                </span>
+              <span className={`px-2 text-xs font-mono font-medium select-none ${themeStyles.pageInfo}`}>
+                {currentPageIdx + 1} / {totalPages}
+              </span>
 
-                <button
-                  onClick={() => setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))}
-                  disabled={currentPageIdx >= totalPages - 1}
-                  className="w-7 h-7 rounded-full flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all opacity-80 hover:opacity-100"
-                  title="下一页"
-                >
-                  <ChevronRight className="w-4 h-4" />
-                </button>
-              </div>
+              <button
+                onClick={() => setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))}
+                disabled={currentPageIdx >= totalPages - 1}
+                className="w-6 h-6 rounded-full flex items-center justify-center disabled:opacity-20 active:scale-90 transition-all opacity-70 hover:opacity-100"
+                title="下一页"
+              >
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
             </div>
           )}
+        </div>
 
-          {/* AI 伴读展开/收起切换按钮 */}
+        {/* 右区：AI 伴读折叠/展开开关（低调雅致玻璃态设计） */}
+        <div>
           <button
             onClick={() => setShowAiCompanion((prev) => !prev)}
-            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-2xs transition-all active:scale-95 ${
+            className={`flex items-center space-x-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold shadow-2xs transition-all active:scale-95 border ${
               showAiCompanion
-                ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/20'
-                : themeStyles.headerBtn
+                ? appTheme === 'dark'
+                  ? 'bg-purple-500/15 text-purple-200 border-purple-500/30'
+                  : appTheme === 'sepia'
+                  ? 'bg-[#EAE0CE] text-[#5A3110] border-[#D8C2A0]'
+                  : 'bg-purple-50 text-purple-700 border-purple-200'
+                : `${themeStyles.headerBtn} border-black/[0.04] dark:border-white/[0.08]`
             }`}
-            title={showAiCompanion ? '收起右侧 AI 伴读，进入全屏纯净阅读' : '展开右侧 AI 伴读面板'}
+            title={showAiCompanion ? '收起右侧伴读，进入全屏纯净阅读' : '展开右侧 AI 伴读分析面板'}
           >
-            <Sparkles className="w-3.5 h-3.5" />
+            <Sparkles className={`w-3.5 h-3.5 ${showAiCompanion ? 'text-purple-400' : 'opacity-60'}`} />
             <span>{showAiCompanion ? 'AI 伴读' : '展开伴读'}</span>
           </button>
         </div>
@@ -1760,9 +1758,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       {/* 核心工作区 */}
       <div className="flex-1 flex overflow-hidden p-5 gap-5 relative">
 
-        {/* 目录大纲抽屉 (当展开时呈现为优雅的左侧大纲树) */}
+        {/* 目录大纲抽屉 (当展开时呈现为优雅的浮动大纲树，避免挤压正文阅读排版) */}
         {showTocDrawer && readViewMode === 'extracted' && (
-          <aside className={`w-80 ${themeStyles.tocContainer} rounded-3xl shadow-sm border flex flex-col overflow-hidden shrink-0 transition-all duration-300`}>
+          <aside className={`absolute left-5 top-5 bottom-5 z-20 w-80 ${themeStyles.tocContainer} rounded-3xl shadow-2xl border flex flex-col overflow-hidden backdrop-blur-xl transition-all duration-300`}>
             {/* 顶栏 */}
             <div className={`p-3.5 border-b flex items-center justify-between ${themeStyles.tocHeader}`}>
               <div className="flex items-center space-x-1.5 text-xs font-bold">

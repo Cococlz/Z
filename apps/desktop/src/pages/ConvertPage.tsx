@@ -321,7 +321,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
       <main className="flex-1 overflow-hidden p-6 flex flex-col space-y-4 max-w-7xl w-full mx-auto">
         
         {/* 顶部控制面板：源文件与目标格式选择器 */}
-        <div className="bg-white rounded-3xl p-5 border border-black/[0.04] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 select-none">
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 border border-black/[0.04] dark:border-white/[0.08] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 select-none transition-colors">
           
           {/* 左侧：源文件选择 */}
           <div className="flex-1 flex items-center space-x-3 min-w-0">
@@ -334,10 +334,10 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                     setSelectedDocId(e.target.value)
                     setResult(null)
                   }}
-                  className="w-full max-w-md px-3 py-1.5 text-xs font-bold text-zinc-800 bg-[#F2F2F7] hover:bg-zinc-200/70 border border-black/[0.04] rounded-xl focus:outline-none transition-all truncate"
+                  className="w-full max-w-md px-3 py-1.5 text-xs font-bold text-zinc-800 dark:text-zinc-100 bg-[#F2F2F7] dark:bg-white/[0.08] hover:bg-zinc-200/70 dark:hover:bg-white/[0.12] border border-black/[0.04] dark:border-white/[0.08] rounded-xl focus:outline-none transition-all truncate"
                 >
                   {documents.map((d) => (
-                    <option key={d.id} value={d.id}>
+                    <option key={d.id} value={d.id} className="dark:bg-[#2C2C2E] dark:text-white">
                       [{d.file_type.toUpperCase()}] {d.name} ({Math.round(d.file_size / 1024)} KB)
                     </option>
                   ))}
@@ -351,10 +351,10 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                 onClick={() => fileInputRef.current?.click()}
                 className={`flex-1 border-2 border-dashed rounded-2xl px-4 py-2 flex items-center justify-between cursor-pointer transition-all ${
                   isDragOver
-                    ? 'border-amber-400 bg-amber-50/80 scale-[1.01]'
+                    ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 scale-[1.01]'
                     : uploadedFile
-                    ? 'border-emerald-300 bg-emerald-50/40 hover:bg-emerald-50/70'
-                    : 'border-zinc-200 bg-[#F2F2F7]/60 hover:bg-[#F2F2F7]'
+                    ? 'border-emerald-300 dark:border-emerald-700 bg-emerald-50/40 dark:bg-emerald-950/30 hover:bg-emerald-50/70'
+                    : 'border-zinc-200 dark:border-white/10 bg-[#F2F2F7]/60 dark:bg-white/[0.04] hover:bg-[#F2F2F7] dark:hover:bg-white/[0.08]'
                 }`}
               >
                 <input
@@ -397,7 +397,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
                 targetFormat === 'txt'
                   ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] text-zinc-600 hover:bg-zinc-200/80'
+                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
               }`}
               title="纯净分段文本，适合听书、TTS 与轻量笔记"
             >
@@ -414,7 +414,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
                 targetFormat === 'docx'
                   ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] text-zinc-600 hover:bg-zinc-200/80'
+                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
               }`}
               title="PPTX 自动提炼每页标题和演讲者备注生成讲义；Markdown/PDF 生成多级大纲"
             >
@@ -431,7 +431,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
                 targetFormat === 'markdown'
                   ? 'bg-purple-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] text-zinc-600 hover:bg-zinc-200/80'
+                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
               }`}
               title="标准语法结构，适合导入知识库或二次深度研读"
             >
@@ -448,7 +448,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
                 targetFormat === 'images'
                   ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] text-zinc-600 hover:bg-zinc-200/80'
+                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
               }`}
               title="批量抽取文档中所有内嵌高清配图与图表"
             >
@@ -477,12 +477,12 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
         )}
 
         {/* 结果呈现主卡片 */}
-        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-black/[0.04] flex flex-col overflow-hidden">
+        <div className="flex-1 bg-white dark:bg-[#1C1C1E] rounded-3xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] flex flex-col overflow-hidden transition-colors">
           
           {/* 顶栏控制（仅在有文本结果时展示） */}
-          <div className="px-6 py-3 border-b border-zinc-100 flex items-center justify-between shrink-0 bg-[#F2F2F7]/30 select-none">
+          <div className="px-6 py-3 border-b border-zinc-100 dark:border-white/[0.06] flex items-center justify-between shrink-0 bg-[#F2F2F7]/30 dark:bg-white/[0.02] select-none">
             <div className="flex items-center space-x-2">
-              <span className="text-xs font-bold text-zinc-700">
+              <span className="text-xs font-bold text-zinc-700 dark:text-zinc-200">
                 {result ? `转换结果: ${result.source_name}` : '转换输出工作台'}
               </span>
               {result?.char_count !== undefined && (
@@ -501,11 +501,11 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
             {result && result.target_format !== 'images' && (
               <div className="flex items-center space-x-2">
                 {result.content && (
-                  <div className="flex items-center bg-[#F2F2F7] p-0.5 rounded-lg text-xs font-medium">
+                  <div className="flex items-center bg-[#F2F2F7] dark:bg-white/10 p-0.5 rounded-lg text-xs font-medium">
                     <button
                       onClick={() => setViewMode('preview')}
                       className={`px-2 py-0.5 rounded-md transition-all flex items-center space-x-1 ${
-                        viewMode === 'preview' ? 'bg-white shadow-2xs text-zinc-900 font-bold' : 'text-zinc-500'
+                        viewMode === 'preview' ? 'bg-white dark:bg-[#2C2C2E] shadow-2xs text-zinc-900 dark:text-white font-bold' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
                       }`}
                     >
                       <Eye className="w-3 h-3" />
@@ -514,7 +514,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                     <button
                       onClick={() => setViewMode('code')}
                       className={`px-2 py-0.5 rounded-md transition-all flex items-center space-x-1 ${
-                        viewMode === 'code' ? 'bg-white shadow-2xs text-zinc-900 font-bold' : 'text-zinc-500'
+                        viewMode === 'code' ? 'bg-white dark:bg-[#2C2C2E] shadow-2xs text-zinc-900 dark:text-white font-bold' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-200'
                       }`}
                     >
                       <Code2 className="w-3 h-3" />
@@ -526,7 +526,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                 {result.content && (
                   <button
                     onClick={handleCopyText}
-                    className="px-3 py-1 bg-[#F2F2F7] hover:bg-zinc-200/80 rounded-xl text-xs font-semibold text-zinc-700 active:scale-95 transition-all flex items-center space-x-1"
+                    className="px-3 py-1 bg-[#F2F2F7] dark:bg-white/10 hover:bg-zinc-200/80 dark:hover:bg-white/15 rounded-xl text-xs font-semibold text-zinc-700 dark:text-zinc-200 active:scale-95 transition-all flex items-center space-x-1"
                     title="复制内容到剪贴板"
                   >
                     {copied ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
@@ -563,26 +563,26 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
                 <Loader2 className="w-8 h-8 animate-spin text-amber-500" />
                 <span className="text-xs font-medium">正在进行纯本地格式转换与结构提炼...</span>
-                <span className="text-[11px] text-zinc-300">绝无任何网络请求，保护您的私密数据</span>
+                <span className="text-[11px] text-zinc-400">绝无任何网络请求，保护您的私密数据</span>
               </div>
             ) : !result ? (
               /* 空状态 */
               <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4 text-zinc-400 select-none">
-                <div className="w-14 h-14 rounded-3xl bg-amber-50 flex items-center justify-center text-amber-500 shadow-2xs">
+                <div className="w-14 h-14 rounded-3xl bg-amber-500/10 flex items-center justify-center text-amber-500 shadow-2xs">
                   <Shuffle className="w-7 h-7" />
                 </div>
                 <div className="space-y-1">
-                  <h3 className="text-sm font-bold text-zinc-700">开箱即用的本地文档格式工坊</h3>
+                  <h3 className="text-sm font-bold text-zinc-700 dark:text-zinc-200">开箱即用的本地文档格式工坊</h3>
                   <p className="text-xs max-w-md text-zinc-400 leading-relaxed">
-                    支持 <span className="font-semibold text-zinc-600">PDF / PPTX / Word / Markdown</span> 互相转换。
+                    支持 <span className="font-semibold text-zinc-600 dark:text-zinc-300">PDF / PPTX / Word / Markdown</span> 互相转换。
                     在上方选择文档并点击「一键转换」，即可毫秒级得到结构化讲义、纯净文本或高清配图素材。
                   </p>
                 </div>
                 
                 {/* 场景亮点推荐卡片 */}
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-4 max-w-2xl text-left">
-                  <div className="bg-[#F2F2F7]/60 rounded-2xl p-3 border border-black/[0.03] space-y-1">
-                    <div className="text-xs font-bold text-zinc-800 flex items-center space-x-1.5">
+                  <div className="bg-[#F2F2F7]/60 dark:bg-white/[0.04] rounded-2xl p-3 border border-black/[0.03] dark:border-white/[0.06] space-y-1">
+                    <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
                       <Presentation className="w-3.5 h-3.5 text-blue-500" />
                       <span>PPTX → Word 讲义</span>
                     </div>
@@ -591,8 +591,8 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                     </p>
                   </div>
 
-                  <div className="bg-[#F2F2F7]/60 rounded-2xl p-3 border border-black/[0.03] space-y-1">
-                    <div className="text-xs font-bold text-zinc-800 flex items-center space-x-1.5">
+                  <div className="bg-[#F2F2F7]/60 dark:bg-white/[0.04] rounded-2xl p-3 border border-black/[0.03] dark:border-white/[0.06] space-y-1">
+                    <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
                       <FileText className="w-3.5 h-3.5 text-indigo-500" />
                       <span>PDF → 纯文本 TXT</span>
                     </div>
@@ -601,8 +601,8 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                     </p>
                   </div>
 
-                  <div className="bg-[#F2F2F7]/60 rounded-2xl p-3 border border-black/[0.03] space-y-1">
-                    <div className="text-xs font-bold text-zinc-800 flex items-center space-x-1.5">
+                  <div className="bg-[#F2F2F7]/60 dark:bg-white/[0.04] rounded-2xl p-3 border border-black/[0.03] dark:border-white/[0.06] space-y-1">
+                    <div className="text-xs font-bold text-zinc-800 dark:text-zinc-200 flex items-center space-x-1.5">
                       <ImageIcon className="w-3.5 h-3.5 text-emerald-500" />
                       <span>内嵌素材批量提取</span>
                     </div>
