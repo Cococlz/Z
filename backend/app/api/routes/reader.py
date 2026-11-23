@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import datetime
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from app.database.session import get_db
 from app.database.models import Document, DocumentChunk, Summary, Annotation
 from app.services.summary_service import generate_summary_stream
+from app.services.toc_service import get_document_toc
 
 logger = logging.getLogger(__name__)
 
@@ -46,9 +48,13 @@ class InlineActionRequest(BaseModel):
     context: Optional[str] = None
 
 
+class UpdateProgressRequest(BaseModel):
+    page_index: int = 0
+
+
 @router.get("/{doc_id}/content")
 def get_document_content(doc_id: str, db: Session = Depends(get_db)):
-    """获取文档详情及其所有分页正文切片"""
+    """获取文档详情、分页正文切片、原生/启发式大纲树与最后阅读进度"""
     doc = db.query(Document).filter(Document.id == doc_id).first()
     if not doc:
         raise HTTPException(status_code=404, detail="文档未找到")
@@ -71,6 +77,9 @@ def get_document_content(doc_id: str, db: Session = Depends(get_db)):
         for c in chunks
     ]
 
+    # 提取文档原生大纲目录树
+    toc = get_document_toc(doc, chunks)
+
     return {
         "id": doc.id,
         "name": doc.name,
@@ -78,7 +87,48 @@ def get_document_content(doc_id: str, db: Session = Depends(get_db)):
         "page_count": doc.page_count,
         "char_count": doc.char_count,
         "status": doc.status,
+        "last_read_page": doc.last_read_page or 0,
+        "last_read_at": doc.last_read_at.isoformat() if doc.last_read_at else None,
+        "toc": toc,
         "pages": pages,
+    }
+
+
+@router.get("/{doc_id}/toc")
+def get_document_toc_endpoint(doc_id: str, db: Session = Depends(get_db)):
+    """获取文档大纲树（包含层级与对应分块页码）"""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    chunks = (
+        db.query(DocumentChunk)
+        .filter(DocumentChunk.document_id == doc_id)
+        .order_by(DocumentChunk.chunk_index)
+        .all()
+    )
+    return get_document_toc(doc, chunks)
+
+
+@router.post("/{doc_id}/progress")
+def update_reading_progress(
+    doc_id: str,
+    req: UpdateProgressRequest,
+    db: Session = Depends(get_db),
+):
+    """记录并保存用户对该文档的最新阅读页码进度"""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    doc.last_read_page = max(0, req.page_index)
+    doc.last_read_at = datetime.utcnow()
+    db.commit()
+    return {
+        "success": True,
+        "document_id": doc.id,
+        "last_read_page": doc.last_read_page,
+        "last_read_at": doc.last_read_at.isoformat(),
     }
 
 

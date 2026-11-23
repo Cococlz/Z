@@ -35,6 +35,8 @@ class Document(Base):
     # pending | parsing | indexed | failed
     status = Column(String, nullable=False, default="pending")
     error_message = Column(Text, nullable=True)
+    last_read_page = Column(Integer, default=0)              # 上次阅读到的页码/分块序号 (0-based)
+    last_read_at = Column(DateTime, nullable=True)           # 上次阅读时间
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 

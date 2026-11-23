@@ -59,6 +59,16 @@ def _migrate_db(engine) -> None:
                     cursor.execute("PRAGMA foreign_keys=ON")
                     conn.connection.commit()
                     break
+
+            # 检查 documents 表是否包含阅读进度字段
+            cursor.execute("PRAGMA table_info(documents)")
+            doc_cols = {col[1] for col in cursor.fetchall()}
+            if "last_read_page" not in doc_cols:
+                cursor.execute("ALTER TABLE documents ADD COLUMN last_read_page INTEGER DEFAULT 0")
+                conn.connection.commit()
+            if "last_read_at" not in doc_cols:
+                cursor.execute("ALTER TABLE documents ADD COLUMN last_read_at DATETIME")
+                conn.connection.commit()
         except Exception as e:
             # 表可能尚不存在，create_all 会负责创建
             pass
