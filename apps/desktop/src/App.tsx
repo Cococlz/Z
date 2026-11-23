@@ -7,12 +7,14 @@ import {
   Sparkles,
   Cpu,
   Shuffle,
+  Search,
 } from 'lucide-react'
 import LibraryPage from './pages/LibraryPage'
 import { ChatPage } from './pages/ChatPage'
 import { SettingsPage } from './pages/SettingsPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { ConvertPage } from './pages/ConvertPage'
+import { SpotlightModal } from './components/SpotlightModal'
 import { useDocStore } from './stores/docStore'
 
 type Page = 'library' | 'chat' | 'reader' | 'convert' | 'settings'
@@ -34,6 +36,8 @@ const NAV_ITEMS: NavItem[] = [
 
 export default function App() {
   const [page, setPage] = useState<Page>('library')
+  const [spotlightOpen, setSpotlightOpen] = useState(false)
+  const setTargetReaderDoc = useDocStore((s) => s.setTargetReaderDoc)
 
   // 1. 同步尝试从 URL query 获取（零延迟）
   const queryParams = new URLSearchParams(window.location.search)
@@ -41,6 +45,27 @@ export default function App() {
 
   const [backendUrl, setBackendUrl] = useState<string | null>(initialUrl)
   const [backendReady, setBackendReady] = useState<boolean>(Boolean(initialUrl))
+
+  // 监听全局 ⌘K / Ctrl+K 快捷键唤起聚焦搜索
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault()
+        setSpotlightOpen((prev) => !prev)
+      }
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [])
+
+  const handleNavigateToReader = (docId: string, pageIdx: number) => {
+    setTargetReaderDoc(docId, pageIdx)
+    setPage('reader')
+  }
+
+  const handleNavigateToChat = (_docId?: string, _query?: string) => {
+    setPage('chat')
+  }
 
   useEffect(() => {
     if (initialUrl) {
@@ -123,6 +148,21 @@ export default function App() {
             </div>
           </div>
 
+          {/* Spotlight 全局聚焦搜索按钮 */}
+          <button
+            onClick={() => setSpotlightOpen(true)}
+            className="w-full flex items-center justify-between px-3 py-2 bg-black/[0.04] hover:bg-purple-50/80 hover:text-purple-700 rounded-2xl text-xs text-zinc-500 font-medium transition-all group active:scale-[0.98] border border-transparent hover:border-purple-200/60"
+            title="按下 ⌘K 随时唤起全局聚焦搜索"
+          >
+            <div className="flex items-center space-x-2 truncate">
+              <Search className="w-3.5 h-3.5 text-zinc-400 group-hover:text-purple-600 transition-colors" />
+              <span>聚焦搜索...</span>
+            </div>
+            <kbd className="px-1.5 py-0.5 bg-white border border-black/5 rounded-md text-[10px] font-mono font-semibold text-zinc-400 shadow-2xs group-hover:text-purple-600">
+              ⌘K
+            </kbd>
+          </button>
+
           {/* 导航菜单组 */}
           <nav className="space-y-1">
             {NAV_ITEMS.map((item) => {
@@ -182,6 +222,14 @@ export default function App() {
       {/* 主视图渲染区 */}
       <main className="flex-1 flex overflow-hidden">{renderPage()}</main>
 
+      {/* 全局聚焦搜索 Spotlight 弹窗 */}
+      <SpotlightModal
+        isOpen={spotlightOpen}
+        onClose={() => setSpotlightOpen(false)}
+        backendUrl={backendUrl || ''}
+        onNavigateToReader={handleNavigateToReader}
+        onNavigateToChat={handleNavigateToChat}
+      />
     </div>
   )
 }

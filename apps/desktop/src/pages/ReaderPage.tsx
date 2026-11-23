@@ -85,11 +85,24 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const backendUrl = propUrl || storeUrl || ''
 
   const { documents, fetchDocuments } = useDocStore()
+  const targetDocId = useDocStore((s) => s.targetDocId)
+  const targetPageIdx = useDocStore((s) => s.targetPageIdx)
+  const clearTargetReaderDoc = useDocStore((s) => s.clearTargetReaderDoc)
+
   const [selectedDocId, setSelectedDocId] = useState<string>('')
   const [docContent, setDocContent] = useState<DocContent | null>(null)
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(0)
   const [loadingContent, setLoadingContent] = useState(false)
+
+  // 监听来自 Spotlight 全局搜索的指定文档与页码跳转
+  useEffect(() => {
+    if (targetDocId) {
+      setSelectedDocId(targetDocId)
+      setCurrentPageIdx(targetPageIdx || 0)
+      clearTargetReaderDoc()
+    }
+  }, [targetDocId, targetPageIdx, clearTargetReaderDoc])
 
   // 阅读视图切换（精读文本 vs 原版 PDF）
   const [readViewMode, setReadViewMode] = useState<ReadViewMode>('extracted')
@@ -160,7 +173,11 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
     async function loadData() {
       setLoadingContent(true)
-      setCurrentPageIdx(0)
+      if (targetPageIdx > 0) {
+        setCurrentPageIdx(targetPageIdx)
+      } else {
+        setCurrentPageIdx(0)
+      }
       setSummaries({})
       setStreamError(null)
       setTooltip((prev) => ({ ...prev, show: false }))

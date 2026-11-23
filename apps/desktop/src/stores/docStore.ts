@@ -21,6 +21,12 @@ interface DocStore {
   error: string | null
   backendUrl: string | null
 
+  // Spotlight 全局搜索直接唤起阅读器定位目标
+  targetDocId: string | null
+  targetPageIdx: number
+  setTargetReaderDoc: (docId: string, pageIdx?: number) => void
+  clearTargetReaderDoc: () => void
+
   setBackendUrl: (url: string) => void
   fetchDocuments: () => Promise<void>
   addDocument: (doc: Document) => void
@@ -33,6 +39,13 @@ export const useDocStore = create<DocStore>((set, get) => ({
   loading: false,
   error: null,
   backendUrl: null,
+
+  targetDocId: null,
+  targetPageIdx: 0,
+  setTargetReaderDoc: (docId, pageIdx = 0) =>
+    set({ targetDocId: docId, targetPageIdx: pageIdx }),
+  clearTargetReaderDoc: () =>
+    set({ targetDocId: null, targetPageIdx: 0 }),
 
   setBackendUrl: (url) => set({ backendUrl: url }),
 

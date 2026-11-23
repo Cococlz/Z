@@ -15,6 +15,7 @@ from app.api.routes import chat
 from app.api.routes import settings as settings_route
 from app.api.routes import reader
 from app.api.routes import convert
+from app.api.routes import search
 from app.database.session import init_db
 
 @asynccontextmanager
@@ -58,6 +59,7 @@ app.include_router(chat.router)
 app.include_router(settings_route.router)
 app.include_router(reader.router)
 app.include_router(convert.router)
+app.include_router(search.router)
 
 def find_free_port() -> int:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
