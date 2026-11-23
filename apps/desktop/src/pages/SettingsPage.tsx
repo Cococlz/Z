@@ -319,13 +319,13 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
   }
 
   return (
-    <div className="flex-1 bg-[#F2F2F7] overflow-y-auto px-8 py-7 selection:bg-blue-100 font-sans">
+    <div className="flex-1 bg-transparent overflow-y-auto px-8 py-7 selection:bg-blue-100 font-sans transition-colors duration-200">
       <div className="max-w-2xl mx-auto space-y-7 pb-12">
         {/* 顶部标题栏 */}
         <div className="flex items-center justify-between pt-1">
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-zinc-900">系统设置</h1>
-            <p className="text-xs text-zinc-500 mt-1">管理你的本地知识库资产、大模型引擎与个性化阅读偏好</p>
+            <h1 className="text-2xl font-bold tracking-tight text-zinc-900 dark:text-zinc-100">系统设置</h1>
+            <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">管理你的本地知识库资产、大模型引擎与个性化阅读偏好</p>
           </div>
           {toastMessage && (
             <div className="flex items-center space-x-1.5 px-3.5 py-1.5 bg-zinc-900 text-white text-xs font-medium rounded-full shadow-lg animate-fade-in">

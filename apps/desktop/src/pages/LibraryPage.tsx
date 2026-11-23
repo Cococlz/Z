@@ -82,15 +82,15 @@ function DocRow({
   }
 
   return (
-    <tr className="group border-b border-slate-100 hover:bg-slate-50/70 transition-colors">
+    <tr className="group border-b border-slate-100 dark:border-white/[0.06] hover:bg-slate-50/70 dark:hover:bg-white/[0.03] transition-colors">
       {/* File icon + name */}
       <td className="py-3 px-4">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-lg bg-slate-100 flex items-center justify-center flex-none">
+          <div className="w-8 h-8 rounded-lg bg-slate-100 dark:bg-white/10 flex items-center justify-center flex-none">
             {FILE_ICON[doc.file_type] ?? <FileText className="w-5 h-5 text-slate-400" />}
           </div>
           <div className="min-w-0">
-            <p className="text-sm font-medium text-slate-800 truncate max-w-xs">{doc.name}</p>
+            <p className="text-sm font-medium text-slate-800 dark:text-zinc-200 truncate max-w-xs">{doc.name}</p>
             {doc.error_message && (
               <p className="text-[11px] text-red-500 truncate max-w-xs">{doc.error_message}</p>
             )}
@@ -100,25 +100,25 @@ function DocRow({
 
       {/* Type */}
       <td className="py-3 px-4">
-        <span className="text-xs font-mono uppercase text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded">
+        <span className="text-xs font-mono uppercase text-slate-500 dark:text-zinc-300 bg-slate-100 dark:bg-white/10 px-1.5 py-0.5 rounded">
           .{doc.file_type}
         </span>
       </td>
 
       {/* Size */}
-      <td className="py-3 px-4 text-xs text-slate-500 tabular-nums">{fmtSize(doc.file_size)}</td>
+      <td className="py-3 px-4 text-xs text-slate-500 dark:text-zinc-400 tabular-nums">{fmtSize(doc.file_size)}</td>
 
       {/* Pages / chars */}
-      <td className="py-3 px-4 text-xs text-slate-500 tabular-nums">
+      <td className="py-3 px-4 text-xs text-slate-500 dark:text-zinc-400 tabular-nums">
         {doc.page_count > 0 ? `${doc.page_count} 页` : '—'}
-        {doc.char_count > 0 && <span className="ml-1 text-slate-400">· {fmtChars(doc.char_count)}</span>}
+        {doc.char_count > 0 && <span className="ml-1 text-slate-400 dark:text-zinc-500">· {fmtChars(doc.char_count)}</span>}
       </td>
 
       {/* Status */}
       <td className="py-3 px-4">{STATUS_BADGE[doc.status]}</td>
 
       {/* Date */}
-      <td className="py-3 px-4 text-xs text-slate-400 tabular-nums whitespace-nowrap">
+      <td className="py-3 px-4 text-xs text-slate-400 dark:text-zinc-500 tabular-nums whitespace-nowrap">
         {fmtDate(doc.created_at)}
       </td>
 
@@ -127,7 +127,7 @@ function DocRow({
         <button
           onClick={handleDelete}
           disabled={deleting}
-          className="p-1.5 rounded-lg text-slate-300 hover:text-red-500 hover:bg-red-50 transition opacity-0 group-hover:opacity-100"
+          className="p-1.5 rounded-lg text-slate-300 dark:text-zinc-600 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition opacity-0 group-hover:opacity-100"
           title="删除文档"
         >
           {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
@@ -197,13 +197,13 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex-none flex items-center justify-between p-6 pb-4 border-b border-slate-200/60">
+      <div className="flex-none flex items-center justify-between p-6 pb-4 border-b border-slate-200/60 dark:border-white/[0.08]">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight flex items-center gap-2">
+          <h1 className="text-xl font-bold text-slate-900 dark:text-zinc-100 tracking-tight flex items-center gap-2">
             <FolderOpen className="w-5 h-5 text-indigo-500" />
             我的文档库
           </h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <p className="text-sm text-slate-500 dark:text-zinc-400 mt-0.5">
             共 {documents.length} 份文档 · 本地受管存储 · SHA-256 去重
           </p>
         </div>
@@ -212,7 +212,7 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
           <button
             onClick={fetchDocuments}
             disabled={loading}
-            className="p-2 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition"
+            className="p-2 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-zinc-200 hover:bg-slate-100 dark:hover:bg-white/10 transition"
             title="刷新"
           >
             <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
@@ -243,7 +243,7 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
 
       {/* Upload error */}
       {uploadError && (
-        <div className="mx-6 mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600 flex items-center gap-2">
+        <div className="mx-6 mt-4 p-3 bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900/40 rounded-xl text-sm text-red-600 dark:text-red-400 flex items-center gap-2">
           <XCircle className="w-4 h-4 flex-none" />
           {uploadError}
         </div>
@@ -256,20 +256,20 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
           placeholder="搜索文档名称…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full max-w-sm px-3 py-2 text-sm bg-white border border-slate-200 rounded-lg shadow-sm placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400 transition"
+          className="w-full max-w-sm px-3 py-2 text-sm bg-white dark:bg-[#1C1C1E] border border-slate-200 dark:border-white/[0.08] text-slate-800 dark:text-zinc-100 rounded-lg shadow-sm placeholder-slate-400 dark:placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-300 dark:focus:ring-indigo-800 focus:border-indigo-400 transition"
         />
       </div>
 
       {/* Table */}
       <div className="flex-1 overflow-y-auto px-6 pt-4">
         {error && (
-          <div className="p-4 text-sm text-red-500 bg-red-50 rounded-xl border border-red-100">
+          <div className="p-4 text-sm text-red-500 bg-red-50 dark:bg-red-950/30 rounded-xl border border-red-100 dark:border-red-900/30">
             加载失败：{error}
           </div>
         )}
 
         {!error && filtered.length === 0 ? (
-          <div className="flex flex-col items-center justify-center h-64 text-slate-400">
+          <div className="flex flex-col items-center justify-center h-64 text-slate-400 dark:text-zinc-500">
             <FileText className="w-12 h-12 mb-3 opacity-30" />
             <p className="text-sm font-medium">
               {search ? '没有找到匹配的文档' : '还没有导入任何文档'}
@@ -281,7 +281,7 @@ export default function LibraryPage({ backendUrl }: { backendUrl: string }) {
         ) : (
           <table className="w-full text-left">
             <thead>
-              <tr className="border-b border-slate-200 text-xs text-slate-400 uppercase tracking-wide">
+              <tr className="border-b border-slate-200 dark:border-white/[0.08] text-xs text-slate-400 dark:text-zinc-500 uppercase tracking-wide">
                 <th className="pb-3 px-4 font-medium">文档名称</th>
                 <th className="pb-3 px-4 font-medium">格式</th>
                 <th className="pb-3 px-4 font-medium">大小</th>

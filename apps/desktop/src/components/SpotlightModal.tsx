@@ -167,11 +167,11 @@ export const SpotlightModal: React.FC<SpotlightModalProps> = ({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full max-w-2xl bg-white/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/[0.08] overflow-hidden flex flex-col max-h-[75vh] animate-scale-in"
+        className="w-full max-w-2xl bg-white/95 dark:bg-[#1C1C1E]/95 backdrop-blur-2xl rounded-3xl shadow-2xl border border-black/[0.08] dark:border-white/[0.1] overflow-hidden flex flex-col max-h-[75vh] animate-scale-in"
       >
         {/* 顶部搜索输入框 */}
-        <div className="flex items-center px-5 py-4 border-b border-zinc-100 space-x-3 bg-white/60">
-          <div className="w-8 h-8 rounded-xl bg-purple-50 flex items-center justify-center text-purple-600 shrink-0">
+        <div className="flex items-center px-5 py-4 border-b border-zinc-100 dark:border-white/[0.08] space-x-3 bg-white/60 dark:bg-[#1C1C1E]/60">
+          <div className="w-8 h-8 rounded-xl bg-purple-50 dark:bg-purple-950/40 flex items-center justify-center text-purple-600 dark:text-purple-300 shrink-0">
             {loading ? <Loader2 className="w-4 h-4 animate-spin text-purple-600" /> : <Search className="w-4 h-4" />}
           </div>
 
@@ -181,7 +181,7 @@ export const SpotlightModal: React.FC<SpotlightModalProps> = ({
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             placeholder="搜索全库文段、核心概念或提问... (↑↓ 选择，↵ 直达)"
-            className="flex-1 bg-transparent text-base text-zinc-900 placeholder:text-zinc-400 focus:outline-none font-medium"
+            className="flex-1 bg-transparent text-base text-zinc-900 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder-zinc-500 focus:outline-none font-medium"
           />
 
           {query && (
@@ -190,14 +190,14 @@ export const SpotlightModal: React.FC<SpotlightModalProps> = ({
                 setQuery('')
                 inputRef.current?.focus()
               }}
-              className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-400 active:scale-90 transition-all mr-1"
+              className="w-6 h-6 rounded-full bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 flex items-center justify-center text-zinc-400 active:scale-90 transition-all mr-1"
             >
               <X className="w-3.5 h-3.5" />
             </button>
           )}
 
           <div className="flex items-center space-x-1">
-            <kbd className="px-2 py-1 bg-zinc-100 border border-zinc-200 rounded-lg text-[10px] font-mono font-semibold text-zinc-500 shadow-2xs">
+            <kbd className="px-2 py-1 bg-zinc-100 dark:bg-white/10 border border-zinc-200 dark:border-white/10 rounded-lg text-[10px] font-mono font-semibold text-zinc-500 dark:text-zinc-400 shadow-2xs">
               ESC
             </kbd>
           </div>
@@ -351,7 +351,7 @@ export const SpotlightModal: React.FC<SpotlightModalProps> = ({
         </div>
 
         {/* 底部功能提示条 */}
-        <div className="px-5 py-2.5 bg-zinc-50/80 border-t border-zinc-100 flex items-center justify-between text-[11px] text-zinc-400 select-none">
+        <div className="px-5 py-2.5 bg-zinc-50/80 dark:bg-[#18181A]/80 border-t border-zinc-100 dark:border-white/[0.08] flex items-center justify-between text-[11px] text-zinc-400 select-none">
           <div className="flex items-center space-x-3">
             <span>↑↓ 切换选择</span>
             <span>↵ 确认打开</span>

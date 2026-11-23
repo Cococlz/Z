@@ -2,6 +2,30 @@ import { create } from 'zustand'
 
 export type DocStatus = 'pending' | 'parsing' | 'indexed' | 'failed'
 export type Page = 'library' | 'chat' | 'reader' | 'convert' | 'settings'
+export type AppTheme = 'white' | 'sepia' | 'dark'
+
+function applyThemeToHtml(theme: AppTheme) {
+  if (typeof document !== 'undefined') {
+    const root = document.documentElement
+    root.classList.remove('dark', 'sepia')
+    if (theme === 'dark') {
+      root.classList.add('dark')
+    } else if (theme === 'sepia') {
+      root.classList.add('sepia')
+    }
+  }
+}
+
+const initialTheme: AppTheme =
+  typeof localStorage !== 'undefined'
+    ? ((localStorage.getItem('zhiyue_theme') as AppTheme) ||
+        (localStorage.getItem('zhiyue_reader_appearance')
+          ? (JSON.parse(localStorage.getItem('zhiyue_reader_appearance') || '{}').theme as AppTheme)
+          : null) ||
+        'white')
+    : 'white'
+
+applyThemeToHtml(initialTheme)
 
 export interface Document {
   id: string
@@ -35,6 +59,10 @@ interface DocStore {
   activePage: Page
   setActivePage: (page: Page) => void
 
+  // 全局外观主题 (white / sepia / dark)
+  appTheme: AppTheme
+  setAppTheme: (theme: AppTheme) => void
+
   // LLM 模型配置状态与快捷切换
   llmConfig: LlmConfigState | null
   fetchLlmConfig: () => Promise<void>
@@ -62,6 +90,13 @@ export const useDocStore = create<DocStore>((set, get) => ({
 
   activePage: 'library',
   setActivePage: (page) => set({ activePage: page }),
+
+  appTheme: initialTheme,
+  setAppTheme: (theme) => {
+    localStorage.setItem('zhiyue_theme', theme)
+    applyThemeToHtml(theme)
+    set({ appTheme: theme })
+  },
 
   llmConfig: null,
   fetchLlmConfig: async () => {

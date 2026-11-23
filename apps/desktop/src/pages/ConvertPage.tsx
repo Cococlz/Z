@@ -266,16 +266,16 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
   }
 
   return (
-    <div className="flex-1 flex flex-col bg-[#F2F2F7] h-screen overflow-hidden selection:bg-amber-100">
+    <div className="flex-1 flex flex-col bg-transparent h-screen overflow-hidden selection:bg-amber-100 transition-colors duration-200">
       
       {/* 顶部毛玻璃导航条 */}
-      <header className="h-14 bg-white/70 backdrop-blur-xl border-b border-black/[0.04] px-6 flex items-center justify-between shrink-0 z-10 select-none">
+      <header className="h-14 bg-white/70 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-b border-black/[0.04] dark:border-white/[0.08] px-6 flex items-center justify-between shrink-0 z-10 select-none transition-colors">
         <div className="flex items-center space-x-3">
           <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center text-amber-600 shadow-2xs">
             <Shuffle className="w-4 h-4" />
           </div>
           <div>
-            <div className="text-sm font-bold tracking-tight text-zinc-900 leading-none">
+            <div className="text-sm font-bold tracking-tight text-zinc-900 dark:text-zinc-100 leading-none">
               本地格式转换工坊
             </div>
             <div className="text-[10px] text-zinc-400 mt-1 font-mono">
@@ -285,7 +285,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
         </div>
 
         {/* 顶部操作：来源模式切换胶囊 */}
-        <div className="flex items-center bg-zinc-200/60 p-0.5 rounded-full text-xs font-semibold">
+        <div className="flex items-center bg-zinc-200/60 dark:bg-white/10 p-0.5 rounded-full text-xs font-semibold">
           <button
             onClick={() => {
               setSourceMode('library')

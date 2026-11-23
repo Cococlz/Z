@@ -35,8 +35,48 @@ const NAV_ITEMS: NavItem[] = [
 export default function App() {
   const page = useDocStore((s) => s.activePage)
   const setPage = useDocStore((s) => s.setActivePage)
+  const appTheme = useDocStore((s) => s.appTheme)
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const setTargetReaderDoc = useDocStore((s) => s.setTargetReaderDoc)
+
+  const appStyles = {
+    white: {
+      rootBg: 'bg-[#F2F2F7]',
+      sidebar: 'bg-white/80 border-black/[0.05]',
+      logoText: 'text-zinc-900',
+      logoSubText: 'text-zinc-400',
+      spotlightBtn: 'bg-black/[0.04] text-zinc-500 hover:bg-purple-50/80 hover:text-purple-700 hover:border-purple-200/60',
+      spotlightKbd: 'bg-white border-black/5 text-zinc-400 group-hover:text-purple-600',
+      navActive: 'bg-white text-zinc-900 shadow-sm border border-black/[0.04]',
+      navInactive: 'text-zinc-500 hover:text-zinc-800 hover:bg-black/[0.03]',
+      statusCard: 'bg-white/80 border-black/[0.04] text-zinc-600',
+      statusSub: 'text-zinc-400',
+    },
+    sepia: {
+      rootBg: 'bg-[#F3ECE0]',
+      sidebar: 'bg-[#FAF4E8]/90 border-[#E8DEC8]',
+      logoText: 'text-[#3D3024]',
+      logoSubText: 'text-[#8C7A6B]',
+      spotlightBtn: 'bg-[#EFE5D3] text-[#74614E] hover:bg-[#E5DAC6] hover:text-[#3D3024] hover:border-[#D8C2A0]',
+      spotlightKbd: 'bg-[#FAF4E8] border-[#E8DEC8] text-[#8C7A6B] group-hover:text-[#3D3024]',
+      navActive: 'bg-[#FAF4E8] text-[#3D3024] shadow-sm border border-[#E8DEC8]',
+      navInactive: 'text-[#74614E] hover:text-[#3D3024] hover:bg-[#EFE5D3]/60',
+      statusCard: 'bg-[#FAF4E8]/90 border-[#E8DEC8] text-[#74614E]',
+      statusSub: 'text-[#8C7A6B]',
+    },
+    dark: {
+      rootBg: 'bg-[#121214]',
+      sidebar: 'bg-[#18181A]/95 border-white/[0.08]',
+      logoText: 'text-[#E5E5EA]',
+      logoSubText: 'text-[#8E8E93]',
+      spotlightBtn: 'bg-white/[0.06] text-zinc-400 hover:bg-purple-950/40 hover:text-purple-300 hover:border-purple-800/40',
+      spotlightKbd: 'bg-[#242426] border-white/10 text-zinc-400 group-hover:text-purple-300',
+      navActive: 'bg-[#28282B] text-white shadow-sm border border-white/[0.08]',
+      navInactive: 'text-[#8E8E93] hover:text-white hover:bg-white/[0.04]',
+      statusCard: 'bg-[#1C1C1E] border-white/[0.08] text-[#8E8E93]',
+      statusSub: 'text-[#8E8E93]',
+    },
+  }[appTheme]
 
   // 1. 同步尝试从 URL query 获取（零延迟）
   const queryParams = new URLSearchParams(window.location.search)
@@ -130,10 +170,10 @@ export default function App() {
   }
 
   return (
-    <div className="flex h-screen bg-[#F2F2F7] font-sans overflow-hidden">
+    <div className={`flex h-screen ${appStyles.rootBg} font-sans overflow-hidden transition-colors duration-200`}>
       
-      {/* iOS 风格侧边栏 (Sidebar) */}
-      <aside className="w-60 bg-white/70 backdrop-blur-2xl border-r border-black/[0.05] flex flex-col justify-between shrink-0 p-4 pt-8 select-none">
+      {/* iOS 风格侧边栏 (Sidebar - 全局主题自适应) */}
+      <aside className={`w-60 ${appStyles.sidebar} backdrop-blur-2xl border-r flex flex-col justify-between shrink-0 p-4 pt-8 select-none transition-colors duration-200`}>
         <div className="space-y-6">
           
           {/* Logo 标题区 */}
@@ -142,22 +182,22 @@ export default function App() {
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <div className="text-sm font-bold tracking-tight text-zinc-900 leading-none">智阅 AI</div>
-              <div className="text-[10px] text-zinc-400 mt-1 font-mono">v1.0 Local-First</div>
+              <div className={`text-sm font-bold tracking-tight ${appStyles.logoText} leading-none`}>智阅 AI</div>
+              <div className={`text-[10px] ${appStyles.logoSubText} mt-1 font-mono`}>v1.0 Local-First</div>
             </div>
           </div>
 
           {/* Spotlight 全局聚焦搜索按钮 */}
           <button
             onClick={() => setSpotlightOpen(true)}
-            className="w-full flex items-center justify-between px-3 py-2 bg-black/[0.04] hover:bg-purple-50/80 hover:text-purple-700 rounded-2xl text-xs text-zinc-500 font-medium transition-all group active:scale-[0.98] border border-transparent hover:border-purple-200/60"
+            className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all group active:scale-[0.98] border border-transparent ${appStyles.spotlightBtn}`}
             title="按下 ⌘K 随时唤起全局聚焦搜索"
           >
             <div className="flex items-center space-x-2 truncate">
-              <Search className="w-3.5 h-3.5 text-zinc-400 group-hover:text-purple-600 transition-colors" />
+              <Search className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
               <span>聚焦搜索...</span>
             </div>
-            <kbd className="px-1.5 py-0.5 bg-white border border-black/5 rounded-md text-[10px] font-mono font-semibold text-zinc-400 shadow-2xs group-hover:text-purple-600">
+            <kbd className={`px-1.5 py-0.5 border rounded-md text-[10px] font-mono font-semibold shadow-2xs ${appStyles.spotlightKbd}`}>
               ⌘K
             </kbd>
           </button>
@@ -171,9 +211,7 @@ export default function App() {
                   key={item.id}
                   onClick={() => setPage(item.id)}
                   className={`w-full flex items-center space-x-3 px-3 py-2.5 rounded-2xl text-xs font-semibold transition-all duration-150 active:scale-[0.98] ${
-                    active
-                      ? 'bg-white text-zinc-900 shadow-sm border border-black/[0.04]'
-                      : 'text-zinc-500 hover:text-zinc-800 hover:bg-black/[0.03]'
+                    active ? appStyles.navActive : appStyles.navInactive
                   }`}
                 >
                   <div
@@ -192,7 +230,7 @@ export default function App() {
         </div>
 
         {/* 底部服务运行状态 (iOS 呼吸小药丸) */}
-        <div className="bg-white/80 rounded-2xl p-3 border border-black/[0.04] shadow-2xs flex items-center justify-between">
+        <div className={`rounded-2xl p-3 border shadow-2xs flex items-center justify-between ${appStyles.statusCard}`}>
           <div className="flex items-center space-x-2">
             <span className="relative flex h-2 w-2">
               <span
@@ -206,12 +244,12 @@ export default function App() {
                 }`}
               />
             </span>
-            <span className="text-[11px] font-medium text-zinc-600">
+            <span className="text-[11px] font-medium">
               {backendReady ? '本地引擎就绪' : '连接后端中'}
             </span>
           </div>
 
-          <div className="text-[10px] font-mono text-zinc-400 truncate max-w-[80px]" title={backendUrl || ''}>
+          <div className={`text-[10px] font-mono ${appStyles.statusSub} truncate max-w-[80px]`} title={backendUrl || ''}>
             {backendUrl ? backendUrl.replace('http://127.0.0.1:', ':') : 'offline'}
           </div>
         </div>

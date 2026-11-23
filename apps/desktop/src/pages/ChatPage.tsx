@@ -299,13 +299,13 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
   }
 
   return (
-    <div className="flex-1 flex bg-[#F2F2F7] h-screen overflow-hidden selection:bg-blue-100 relative">
+    <div className="flex-1 flex h-screen overflow-hidden selection:bg-blue-100 relative transition-colors duration-200">
       
       {/* 左侧：历史会话抽屉 (iOS Inset List) */}
       <aside
         className={`${
           showHistory ? 'w-64' : 'w-0'
-        } transition-all duration-200 border-r border-black/[0.05] bg-white/60 backdrop-blur-xl flex flex-col justify-between shrink-0 overflow-hidden z-20`}
+        } transition-all duration-200 border-r border-black/[0.05] dark:border-white/[0.08] bg-white/60 dark:bg-[#18181A]/70 backdrop-blur-xl flex flex-col justify-between shrink-0 overflow-hidden z-20`}
       >
         <div className="p-3.5 space-y-3 flex-1 flex flex-col min-h-0">
           
@@ -313,7 +313,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
           <button
             onClick={handleNewChat}
             disabled={isGenerating}
-            className="w-full py-2.5 px-3.5 rounded-2xl bg-white border border-black/[0.06] hover:bg-zinc-50 active:scale-95 transition-all text-xs font-bold text-zinc-800 shadow-2xs flex items-center justify-between"
+            className="w-full py-2.5 px-3.5 rounded-2xl bg-white dark:bg-[#242426] border border-black/[0.06] dark:border-white/[0.08] hover:bg-zinc-50 dark:hover:bg-[#2C2C2E] active:scale-95 transition-all text-xs font-bold text-zinc-800 dark:text-zinc-200 shadow-2xs flex items-center justify-between"
           >
             <div className="flex items-center space-x-2">
               <div className="w-5 h-5 rounded-lg bg-blue-500 text-white flex items-center justify-center">
@@ -343,7 +343,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                     className={`group w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-between cursor-pointer ${
                       isActive
                         ? 'bg-blue-500 text-white shadow-xs'
-                        : 'text-zinc-700 hover:bg-black/[0.04]'
+                        : 'text-zinc-700 dark:text-zinc-300 hover:bg-black/[0.04] dark:hover:bg-white/[0.06]'
                     }`}
                   >
                     <div className="flex items-center space-x-2 min-w-0">
@@ -373,11 +373,11 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
       <div className="flex-1 flex flex-col h-full overflow-hidden">
         
         {/* 顶部毛玻璃导航条 */}
-        <header className="h-14 bg-white/70 backdrop-blur-xl border-b border-black/[0.04] px-6 flex items-center justify-between shrink-0 z-10">
+        <header className="h-14 bg-white/70 dark:bg-[#1C1C1E]/80 backdrop-blur-xl border-b border-black/[0.04] dark:border-white/[0.08] px-6 flex items-center justify-between shrink-0 z-10 transition-colors">
           <div className="flex items-center space-x-3">
             <button
               onClick={() => setShowHistory((v) => !v)}
-              className="w-8 h-8 rounded-xl bg-zinc-100 hover:bg-zinc-200/80 flex items-center justify-center text-zinc-600 active:scale-95 transition-all shadow-2xs"
+              className="w-8 h-8 rounded-xl bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200/80 dark:hover:bg-white/20 flex items-center justify-center text-zinc-600 dark:text-zinc-300 active:scale-95 transition-all shadow-2xs"
               title={showHistory ? '收起历史列表' : '展开历史列表'}
             >
               {showHistory ? <PanelLeftClose className="w-4 h-4" /> : <PanelLeftOpen className="w-4 h-4" />}
@@ -387,7 +387,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
               <div className="w-7 h-7 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-600">
                 <Sparkles className="w-4 h-4" />
               </div>
-              <span className="text-sm font-semibold text-zinc-900">
+              <span className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                 {activeConvId
                   ? conversations.find((c) => c.id === activeConvId)?.title || 'AI 智能知识问答'
                   : 'AI 智能知识问答'}
@@ -396,7 +396,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
           </div>
 
           {/* 范围选择分段胶囊 */}
-          <div className="flex items-center bg-zinc-200/60 p-0.5 rounded-full text-xs">
+          <div className="flex items-center bg-zinc-200/60 dark:bg-white/10 p-0.5 rounded-full text-xs">
             <div className="flex items-center px-3 py-1 space-x-1.5">
               <Layers className="w-3.5 h-3.5 text-zinc-500" />
               <span className="text-zinc-600 font-medium">检索范围:</span>
@@ -453,7 +453,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                     className={`px-4 py-3 text-sm leading-relaxed ${
                       msg.role === 'user'
                         ? 'bg-[#007AFF] text-white rounded-2xl rounded-tr-sm shadow-sm'
-                        : 'bg-white text-zinc-800 rounded-2xl rounded-tl-sm border border-black/[0.04] shadow-sm'
+                        : 'bg-white dark:bg-[#1C1C1E] text-zinc-800 dark:text-zinc-100 rounded-2xl rounded-tl-sm border border-black/[0.04] dark:border-white/[0.08] shadow-sm'
                     }`}
                   >
                     {isUnconfiguredError(msg.content) ? (
@@ -463,7 +463,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                         onActionSuccess={() => fetchLlmConfig()}
                       />
                     ) : (
-                      <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert">
+                      <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert text-zinc-800 dark:text-zinc-100">
                         <ReactMarkdown>{msg.content}</ReactMarkdown>
                       </div>
                     )}
@@ -479,12 +479,12 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                         <button
                           key={idx}
                           onClick={() => setActiveCitation(cite)}
-                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 hover:bg-white text-zinc-600 hover:text-blue-600 border border-black/[0.06] shadow-2xs transition-all active:scale-95"
+                          className="inline-flex items-center space-x-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-white/80 dark:bg-[#1C1C1E] hover:bg-white dark:hover:bg-[#28282B] text-zinc-600 dark:text-zinc-300 hover:text-blue-600 dark:hover:text-blue-400 border border-black/[0.06] dark:border-white/[0.08] shadow-2xs transition-all active:scale-95"
                         >
                           <Bookmark className="w-3 h-3 text-blue-500" />
                           <span className="truncate max-w-[140px]">{getDocName(cite.doc_id)}</span>
                           <span className="text-zinc-400">· 第{cite.page_number}页</span>
-                          <span className="text-emerald-600 font-semibold">{Math.round(cite.score * 100)}%</span>
+                          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{Math.round(cite.score * 100)}%</span>
                         </button>
                       ))}
                     </div>
@@ -498,7 +498,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
 
         {/* 底部悬浮毛玻璃胶囊输入框 */}
         <footer className="p-5 max-w-3xl w-full mx-auto shrink-0">
-          <div className="bg-white/80 backdrop-blur-xl border border-black/[0.06] rounded-2xl p-2 pl-4 shadow-md flex items-end space-x-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
+          <div className="bg-white/80 dark:bg-[#1C1C1E]/90 backdrop-blur-xl border border-black/[0.06] dark:border-white/[0.08] rounded-2xl p-2 pl-4 shadow-md flex items-end space-x-2 focus-within:ring-2 focus-within:ring-blue-500/20 focus-within:border-blue-500 transition-all">
             <textarea
               rows={1}
               value={input}
@@ -510,7 +510,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                   : '向知识库提问... (Enter 发送，Shift + Enter 换行)'
               }
               disabled={isGenerating}
-              className="flex-1 max-h-32 bg-transparent text-sm text-zinc-800 placeholder:text-zinc-400 resize-none focus:outline-none py-1.5 leading-relaxed"
+              className="flex-1 max-h-32 bg-transparent text-sm text-zinc-800 dark:text-zinc-100 placeholder:text-zinc-400 dark:placeholder-zinc-500 resize-none focus:outline-none py-1.5 leading-relaxed"
             />
 
             <button

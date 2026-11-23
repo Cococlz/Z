@@ -164,6 +164,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     setTimeout(() => setToastMsg(null), 2800)
   }
 
+  const appTheme = useDocStore((s) => s.appTheme)
+  const setAppTheme = useDocStore((s) => s.setAppTheme)
+
   // Apple Books 沉浸式排版与阅读主题
   const DEFAULT_APPEARANCE: ReaderAppearance = {
     theme: 'white',
@@ -182,6 +185,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [showAppearanceMenu, setShowAppearanceMenu] = useState(false)
 
   const updateAppearance = (updates: Partial<ReaderAppearance>) => {
+    if (updates.theme) {
+      setAppTheme(updates.theme)
+    }
     setAppearance((prev) => {
       const next = { ...prev, ...updates }
       try {
@@ -190,6 +196,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       return next
     })
   }
+
+  // 伴读侧边栏收起/展开状态（默认为展开，可一键收起进入全屏纯净阅读）
+  const [showAiCompanion, setShowAiCompanion] = useState(true)
 
   // 目录大纲抽屉状态与搜索及层级折叠
   const [showTocDrawer, setShowTocDrawer] = useState(false)
@@ -692,6 +701,167 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     })
   }
 
+  // 智能结构化排版引擎：将正文切分为标题、代码块、列表项与自然段落（彻底解决排版杂乱、代码混排与换行挤压）
+  const renderStructuredContent = (content: string) => {
+    if (!content) return null
+
+    const rawLines = content.split('\n')
+    const blocks: {
+      type: 'task' | 'code' | 'list' | 'text'
+      lines: string[]
+      meta?: string
+    }[] = []
+
+    let currentCodeLines: string[] = []
+    let inCodeBlock = false
+
+    for (let i = 0; i < rawLines.length; i++) {
+      const line = rawLines[i]
+      const trimmed = line.trim()
+
+      if (!trimmed) {
+        if (inCodeBlock && currentCodeLines.length > 0) {
+          const nextLine = rawLines[i + 1]?.trim() || ''
+          const isNextCode =
+            nextLine.includes('=') ||
+            nextLine.startsWith('print') ||
+            nextLine.startsWith('for ') ||
+            nextLine.startsWith('if ') ||
+            nextLine.startsWith('def ') ||
+            nextLine.startsWith('return ') ||
+            nextLine.startsWith('list.') ||
+            nextLine.startsWith('a.')
+          if (isNextCode) {
+            currentCodeLines.push(line)
+            continue
+          } else {
+            blocks.push({ type: 'code', lines: currentCodeLines })
+            currentCodeLines = []
+            inCodeBlock = false
+          }
+        }
+        continue
+      }
+
+      // 1. 代码块起始标志 (如 【代码示例】 或 ```)
+      if (
+        trimmed.startsWith('【代码示例】') ||
+        trimmed.startsWith('```') ||
+        trimmed.startsWith('代码示例：') ||
+        trimmed.startsWith('示例代码：')
+      ) {
+        if (inCodeBlock && currentCodeLines.length > 0) {
+          blocks.push({ type: 'code', lines: currentCodeLines })
+          currentCodeLines = []
+        }
+        inCodeBlock = true
+        const rest = trimmed.replace(/^(【代码示例】|```\w*|代码示例：|示例代码：)\s*/, '')
+        if (rest) currentCodeLines.push(rest)
+        continue
+      }
+
+      // 若处于代码示例收集状态
+      if (inCodeBlock) {
+        const isNewSection =
+          /^(任务[一二三四五六七八九十\d]+|第[一二三四五六七八九十\d]+[章节条]|#+\s+|\d+[\.、]\s*创建|\d+[\.、]\s*使用|\d+[\.、]\s*编写|\d+[\.、]\s*思考|\d+[\.、]\s*观察|\d+[\.、]\s*下面代码)/.test(
+            trimmed
+          )
+        if (isNewSection) {
+          if (currentCodeLines.length > 0) {
+            blocks.push({ type: 'code', lines: currentCodeLines })
+            currentCodeLines = []
+          }
+          inCodeBlock = false
+        } else {
+          currentCodeLines.push(line)
+          continue
+        }
+      }
+
+      // 2. 章节/核心任务标题 (如 任务一：创建列表 / 第一章 / # 标题)
+      if (/^(任务[一二三四五六七八九十\d]+[:：]?|第[一二三四五六七八九十\d]+[章节条]|#+\s+)/.test(trimmed)) {
+        blocks.push({ type: 'task', lines: [trimmed] })
+        continue
+      }
+
+      // 3. 数字编号有序条目 (如 1. 创建一个列表... / 2. 创建一个空列表...)
+      const listMatch = trimmed.match(/^(\d+)[\.、]\s*(.*)$/)
+      if (listMatch) {
+        blocks.push({ type: 'list', lines: [listMatch[2]], meta: listMatch[1] })
+        continue
+      }
+
+      // 4. 普通段落正文
+      blocks.push({ type: 'text', lines: [line] })
+    }
+
+    if (inCodeBlock && currentCodeLines.length > 0) {
+      blocks.push({ type: 'code', lines: currentCodeLines })
+    }
+
+    return (
+      <div className="space-y-4">
+        {blocks.map((block, bIdx) => {
+          if (block.type === 'task') {
+            return (
+              <div
+                key={`task-${bIdx}`}
+                className="pt-5 pb-2 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center space-x-2.5"
+              >
+                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 dark:bg-purple-400 shrink-0 shadow-xs" />
+                <h3 className="text-base font-bold text-purple-900 dark:text-purple-200 tracking-tight">
+                  {renderArticleText(block.lines[0])}
+                </h3>
+              </div>
+            )
+          }
+
+          if (block.type === 'code') {
+            return (
+              <div
+                key={`code-${bIdx}`}
+                className="my-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-2xs"
+              >
+                <div className="px-3.5 py-1.5 bg-black/[0.02] dark:bg-white/[0.03] border-b border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-purple-700 dark:text-purple-300 font-semibold select-none">
+                  <div className="flex items-center space-x-1.5">
+                    <span className="w-2 h-2 rounded-full bg-amber-400/90 inline-block" />
+                    <span>代码示例</span>
+                  </div>
+                  <span className="text-[10px] opacity-60">Python</span>
+                </div>
+                <pre className="p-3.5 font-mono text-xs leading-relaxed overflow-x-auto text-purple-950 dark:text-purple-100 select-text font-normal">
+                  {block.lines.join('\n')}
+                </pre>
+              </div>
+            )
+          }
+
+          if (block.type === 'list') {
+            return (
+              <div
+                key={`list-${bIdx}`}
+                className="flex items-start space-x-2.5 text-xs sm:text-sm leading-relaxed my-2"
+              >
+                <span className="w-5 h-5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[11px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                  {block.meta}
+                </span>
+                <div className="flex-1 select-text">
+                  {renderArticleText(block.lines[0])}
+                </div>
+              </div>
+            )
+          }
+
+          return (
+            <p key={`text-${bIdx}`} className="leading-relaxed select-text my-1.5">
+              {renderArticleText(block.lines.join('\n'))}
+            </p>
+          )
+        })}
+      </div>
+    )
+  }
+
   // 触发划词 AI 动作 (explain / translate / summarize)
   const triggerInlineAction = async (
     action: 'explain' | 'translate' | 'summarize',
@@ -1068,7 +1238,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       modalBtn: 'bg-[#2C2C2E] hover:bg-[#3A3A3C] text-[#E5E5EA]',
       modalCancelBtn: 'text-[#8E8E93] hover:text-[#E5E5EA] hover:bg-[#2C2C2E]',
     },
-  }[appearance.theme]
+  }[appTheme]
 
   const fontSizeClass = {
     sm: 'text-[14px]',
@@ -1160,9 +1330,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 <div
                   id="zhiyue-appearance-menu"
                   className={`absolute right-0 top-11 w-72 backdrop-blur-2xl rounded-2xl shadow-xl border p-4 z-50 space-y-4 text-xs animate-in fade-in slide-in-from-top-2 select-none ${
-                    appearance.theme === 'dark'
+                    appTheme === 'dark'
                       ? 'bg-[#242426]/95 border-white/[0.08] text-[#E5E5EA]'
-                      : appearance.theme === 'sepia'
+                      : appTheme === 'sepia'
                       ? 'bg-[#FAF4E8]/95 border-[#E8DEC8] text-[#3D3024]'
                       : 'bg-white/95 border-black/[0.08] text-zinc-800'
                   }`}
@@ -1174,13 +1344,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       <button
                         onClick={() => updateAppearance({ theme: 'white' })}
                         className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appearance.theme === 'white'
+                          appTheme === 'white'
                             ? 'border-purple-500 bg-zinc-50 shadow-xs ring-1 ring-purple-500'
                             : 'border-zinc-200 hover:border-zinc-300 bg-white'
                         }`}
                       >
                         <div className="w-5 h-5 rounded-full bg-white border border-zinc-200 shadow-2xs flex items-center justify-center">
-                          {appearance.theme === 'white' && <Check className="w-3 h-3 text-purple-600" />}
+                          {appTheme === 'white' && <Check className="w-3 h-3 text-purple-600" />}
                         </div>
                         <span className="text-[11px] font-semibold text-zinc-800">纯白</span>
                       </button>
@@ -1188,13 +1358,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       <button
                         onClick={() => updateAppearance({ theme: 'sepia' })}
                         className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appearance.theme === 'sepia'
+                          appTheme === 'sepia'
                             ? 'border-purple-500 bg-[#FAF4E8] shadow-xs ring-1 ring-purple-500'
                             : 'border-[#E8DEC8] hover:border-[#D8C7AA] bg-[#FAF4E8]'
                         }`}
                       >
                         <div className="w-5 h-5 rounded-full bg-[#FAF4E8] border border-[#D8C7AA] shadow-2xs flex items-center justify-center">
-                          {appearance.theme === 'sepia' && <Check className="w-3 h-3 text-[#965A2C]" />}
+                          {appTheme === 'sepia' && <Check className="w-3 h-3 text-[#965A2C]" />}
                         </div>
                         <span className="text-[11px] font-semibold text-[#5B4126]">羊皮纸</span>
                       </button>
@@ -1202,13 +1372,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       <button
                         onClick={() => updateAppearance({ theme: 'dark' })}
                         className={`p-2.5 rounded-xl border flex flex-col items-center space-y-1 transition-all ${
-                          appearance.theme === 'dark'
+                          appTheme === 'dark'
                             ? 'border-purple-500 bg-[#1C1C1E] shadow-xs ring-1 ring-purple-500'
                             : 'border-zinc-700 hover:border-zinc-600 bg-[#1C1C1E]'
                         }`}
                       >
                         <div className="w-5 h-5 rounded-full bg-[#1C1C1E] border border-zinc-600 shadow-2xs flex items-center justify-center">
-                          {appearance.theme === 'dark' && <Check className="w-3 h-3 text-purple-400" />}
+                          {appTheme === 'dark' && <Check className="w-3 h-3 text-purple-400" />}
                         </div>
                         <span className="text-[11px] font-semibold text-zinc-200">夜间</span>
                       </button>
@@ -1224,7 +1394,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       </span>
                     </div>
                     <div className={`grid grid-cols-4 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appearance.theme === 'dark' ? 'bg-[#1C1C1E]' : appearance.theme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
                     }`}>
                       {(['sm', 'base', 'lg', 'xl'] as ReaderFontSize[]).map((size) => (
                         <button
@@ -1232,9 +1402,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           onClick={() => updateAppearance({ fontSize: size })}
                           className={`py-1.5 rounded-lg text-xs transition-all ${
                             appearance.fontSize === size
-                              ? appearance.theme === 'dark'
+                              ? appTheme === 'dark'
                                 ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                                : appearance.theme === 'sepia'
+                                : appTheme === 'sepia'
                                 ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
                                 : 'bg-white text-zinc-900 shadow-xs font-bold'
                               : 'opacity-60 hover:opacity-100'
@@ -1250,15 +1420,15 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   <div>
                     <div className="text-[11px] font-bold opacity-60 mb-2">字体系列</div>
                     <div className={`grid grid-cols-2 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appearance.theme === 'dark' ? 'bg-[#1C1C1E]' : appearance.theme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
                     }`}>
                       <button
                         onClick={() => updateAppearance({ fontFamily: 'sans' })}
                         className={`py-1.5 rounded-lg text-xs transition-all ${
                           appearance.fontFamily === 'sans'
-                            ? appearance.theme === 'dark'
+                            ? appTheme === 'dark'
                               ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                              : appearance.theme === 'sepia'
+                              : appTheme === 'sepia'
                               ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
                               : 'bg-white text-zinc-900 shadow-xs font-bold'
                             : 'opacity-60 hover:opacity-100'
@@ -1270,9 +1440,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                         onClick={() => updateAppearance({ fontFamily: 'serif' })}
                         className={`py-1.5 rounded-lg text-xs font-serif transition-all ${
                           appearance.fontFamily === 'serif'
-                            ? appearance.theme === 'dark'
+                            ? appTheme === 'dark'
                               ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                              : appearance.theme === 'sepia'
+                              : appTheme === 'sepia'
                               ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
                               : 'bg-white text-zinc-900 shadow-xs font-bold'
                             : 'opacity-60 hover:opacity-100'
@@ -1287,7 +1457,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   <div>
                     <div className="text-[11px] font-bold opacity-60 mb-2">段落行距</div>
                     <div className={`grid grid-cols-3 p-1 rounded-xl gap-1 font-semibold text-center ${
-                      appearance.theme === 'dark' ? 'bg-[#1C1C1E]' : appearance.theme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
+                      appTheme === 'dark' ? 'bg-[#1C1C1E]' : appTheme === 'sepia' ? 'bg-[#EAE0CE]' : 'bg-zinc-100'
                     }`}>
                       {(['normal', 'relaxed', 'loose'] as ReaderLineHeight[]).map((lh) => (
                         <button
@@ -1295,9 +1465,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           onClick={() => updateAppearance({ lineHeight: lh })}
                           className={`py-1.5 rounded-lg text-xs transition-all ${
                             appearance.lineHeight === lh
-                              ? appearance.theme === 'dark'
+                              ? appTheme === 'dark'
                                 ? 'bg-[#3A3A3C] text-white shadow-xs font-bold'
-                                : appearance.theme === 'sepia'
+                                : appTheme === 'sepia'
                                 ? 'bg-[#FAF4E8] text-[#3D3024] shadow-xs font-bold'
                                 : 'bg-white text-zinc-900 shadow-xs font-bold'
                               : 'opacity-60 hover:opacity-100'
@@ -1368,12 +1538,26 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               </div>
             </div>
           )}
+
+          {/* AI 伴读展开/收起切换按钮 */}
+          <button
+            onClick={() => setShowAiCompanion((prev) => !prev)}
+            className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold shadow-2xs transition-all active:scale-95 ${
+              showAiCompanion
+                ? 'bg-purple-600 text-white border-purple-600 shadow-purple-500/20'
+                : themeStyles.headerBtn
+            }`}
+            title={showAiCompanion ? '收起右侧 AI 伴读，进入全屏纯净阅读' : '展开右侧 AI 伴读面板'}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>{showAiCompanion ? 'AI 伴读' : '展开伴读'}</span>
+          </button>
         </div>
 
       </header>
 
       {/* 核心工作区 */}
-      <div className="flex-1 flex overflow-hidden p-5 gap-5">
+      <div className="flex-1 flex overflow-hidden p-5 gap-5 relative">
 
         {/* 目录大纲抽屉 (当展开时呈现为优雅的左侧大纲树) */}
         {showTocDrawer && readViewMode === 'extracted' && (
@@ -1578,7 +1762,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         )}
         
         {/* 阅读展示区 */}
-        <section className={`flex-1 ${themeStyles.container} rounded-3xl shadow-sm border flex flex-col overflow-hidden relative transition-colors duration-200`}>
+        <section className={`flex-1 min-w-0 ${themeStyles.container} rounded-3xl shadow-sm border flex flex-col overflow-hidden relative transition-colors duration-200`}>
           
           {readViewMode === 'extracted' ? (
             /* 视图 A: 精读排版视图（支持划词操作与 Apple Books 护眼主题） */
@@ -1601,7 +1785,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <div
                 ref={leftContentRef}
                 onMouseUp={handleMouseUp}
-                className={`flex-1 overflow-y-auto px-10 py-8 select-text cursor-text ${themeStyles.selection}`}
+                className={`flex-1 overflow-y-auto px-6 py-8 md:px-12 select-text cursor-text ${themeStyles.selection}`}
               >
                 {loadingContent ? (
                   <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
@@ -1616,9 +1800,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     <p className="text-sm">暂无内容，请选择已完成解析的文档</p>
                   </div>
                 ) : (
-                  <>
-                    <article className={`max-w-none ${themeStyles.article} ${fontFamilyClass} ${fontSizeClass} ${lineHeightClass} space-y-4 whitespace-pre-wrap font-normal select-text cursor-text`}>
-                      {renderArticleText(currentPage.content)}
+                  <div className="max-w-3xl mx-auto w-full">
+                    <article className={`max-w-none ${themeStyles.article} ${fontFamilyClass} ${fontSizeClass} ${lineHeightClass} select-text cursor-text`}>
+                      {renderStructuredContent(currentPage.content)}
                     </article>
 
                     {/* 页面底部多章节流转导航（当文档存在多个分页时显著呈现） */}
@@ -1654,7 +1838,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                         </button>
                       </div>
                     )}
-                  </>
+                  </div>
                 )}
               </div>
             </>
@@ -1683,8 +1867,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
         </section>
 
-        {/* 右侧：AI 伴读与深度分析面板（沉浸式主题自适应） */}
-        <aside className={`w-[440px] ${themeStyles.asideContainer} rounded-3xl shadow-sm border flex flex-col overflow-hidden shrink-0 transition-colors duration-200`}>
+        {/* 右侧：AI 伴读与深度分析面板（支持一键收起/展开） */}
+        {showAiCompanion && (
+          <aside className={`w-[440px] ${themeStyles.asideContainer} rounded-3xl shadow-sm border flex flex-col overflow-hidden shrink-0 transition-colors duration-200`}>
           
           {/* 面板顶栏 */}
           <div className={`p-3 border-b space-y-2.5 shrink-0 ${themeStyles.asideHeader}`}>
@@ -1905,6 +2090,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           </div>
 
         </aside>
+        )}
 
       </div>
 
