@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
 import {
   BookOpen,
@@ -121,6 +121,123 @@ const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'keypoints', label: '核心要点', icon: <Lightbulb className="w-3.5 h-3.5" /> },
   { id: 'notes', label: '划线笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
 ]
+
+// 智能增强型 Markdown 渲染引擎：解决原生 prose 样式缺失导致的大纲平铺无层级与重点淹没问题
+const CustomMarkdownRenderer: React.FC<{
+  content: string
+  themeStyles: any
+}> = ({ content, themeStyles }) => {
+  // 语法预处理：确保不论模型输出是否带有 Markdown # 标记，都能呈现鲜明的思维导图层级
+  const processed = useMemo(() => {
+    if (!content) return ''
+    const lines = content.split('\n')
+    const result: string[] = []
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i]
+      const trimmed = line.trim()
+      // 已有规范 Markdown 标记，直接保留
+      if (/^(#+|\*+|-+|\d+\.)\s/.test(trimmed)) {
+        result.push(line)
+        continue
+      }
+      // 1. 全局大纲大标题 (如 Python 列表操作核心知识结构大纲)
+      if (i === 0 && (trimmed.includes('大纲') || trimmed.includes('摘要') || trimmed.includes('要点'))) {
+        result.push(`# ${trimmed}`)
+        continue
+      }
+      // 2. 一级章 (如 一、创建列表 / 任务一：...)
+      if (/^[一二三四五六七八九十\d]+[、\.]\s*|^任务[一二三四五六七八九十\d]+/.test(trimmed)) {
+        result.push(`\n## ${trimmed}\n`)
+        continue
+      }
+      // 3. 二级模块 (短行且不含标点符号，如 直接创建 / 索引访问 / 类型转换创建)
+      if (trimmed.length > 0 && trimmed.length <= 16 && !/[，。！？；]/.test(trimmed)) {
+        result.push(`### 📌 ${trimmed}`)
+        continue
+      }
+      // 4. 普通叶子条目 (转为带圆点的无序列表)
+      if (trimmed.length > 0) {
+        result.push(`- ${trimmed}`)
+        continue
+      }
+      result.push(line)
+    }
+    return result.join('\n')
+  }, [content])
+
+  return (
+    <div className="select-text cursor-text">
+      <ReactMarkdown
+        components={{
+          h1: ({ children }) => (
+            <div className={`mt-2 mb-4 p-3 rounded-2xl border font-bold text-sm sm:text-base flex items-center space-x-2.5 shadow-2xs ${themeStyles.mdH1 || ''}`}>
+              <span className="w-2.5 h-4.5 rounded-full bg-purple-500 shrink-0" />
+              <span className="flex-1 tracking-tight">{children}</span>
+            </div>
+          ),
+          h2: ({ children }) => {
+            const text = typeof children === 'string' ? children : Array.isArray(children) ? children.join('') : String(children || '')
+            const match = text.match(/^([一二三四五六七八九十\d]+[、\.]|第[一二三四五六七八九十\d]+[章节条]|任务[一二三四五六七八九十\d]+[:：]?)\s*(.*)$/)
+            const badge = match ? match[1].replace(/[:：]$/, '') : '章节'
+            const title = match && match[2] ? match[2] : text
+            return (
+              <div className={`mt-5 mb-2.5 pb-2 font-bold text-xs sm:text-sm flex items-center space-x-2 ${themeStyles.mdH2 || ''}`}>
+                <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 shadow-2xs ${themeStyles.mdH2Badge || ''}`}>
+                  {badge}
+                </span>
+                <span className="tracking-tight flex-1">{title}</span>
+              </div>
+            )
+          },
+          h3: ({ children }) => (
+            <div className={`mt-3.5 mb-1.5 font-bold text-xs flex items-center space-x-1.5 ${themeStyles.mdH3 || ''}`}>
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
+              <span>{children}</span>
+            </div>
+          ),
+          strong: ({ children }) => (
+            <strong className={`font-bold px-1.5 py-0.5 rounded-md inline-block shadow-2xs ${themeStyles.mdStrong || ''}`}>
+              {children}
+            </strong>
+          ),
+          code: ({ children }) => (
+            <code className={`font-mono text-[11px] px-1.5 py-0.5 rounded-md font-semibold ${themeStyles.mdCode || ''}`}>
+              {children}
+            </code>
+          ),
+          ul: ({ children }) => (
+            <ul className="space-y-1.5 my-2 pl-2.5 border-l-2 border-black/[0.06] dark:border-white/[0.08]">
+              {children}
+            </ul>
+          ),
+          ol: ({ children }) => (
+            <ol className="space-y-1.5 my-2 pl-4 list-decimal">
+              {children}
+            </ol>
+          ),
+          li: ({ children }) => (
+            <li className={`text-xs leading-relaxed flex items-start space-x-2 my-1 ${themeStyles.mdLi || ''}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 shadow-2xs ${themeStyles.mdBullet || 'bg-purple-500'}`} />
+              <div className="flex-1 min-w-0">{children}</div>
+            </li>
+          ),
+          p: ({ children }) => (
+            <p className="text-xs leading-relaxed my-1.5">
+              {children}
+            </p>
+          ),
+          blockquote: ({ children }) => (
+            <blockquote className="border-l-2 border-purple-400 pl-3 py-1 my-2 text-xs italic opacity-85">
+              {children}
+            </blockquote>
+          ),
+        }}
+      >
+        {processed}
+      </ReactMarkdown>
+    </div>
+  )
+}
 
 export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
   const storeUrl = useDocStore((s) => s.backendUrl)
@@ -763,7 +880,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       // 若处于代码示例收集状态
       if (inCodeBlock) {
         const isNewSection =
-          /^(任务[一二三四五六七八九十\d]+|第[一二三四五六七八九十\d]+[章节条]|#+\s+|\d+[\.、]\s*创建|\d+[\.、]\s*使用|\d+[\.、]\s*编写|\d+[\.、]\s*思考|\d+[\.、]\s*观察|\d+[\.、]\s*下面代码)/.test(
+          /^(任务[一二三四五六七八九十\d]+|第[一二三四五六七八九十\d]+[章节条]|#+\s+|\d+[\.、])/.test(
             trimmed
           )
         if (isNewSection) {
@@ -803,15 +920,22 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       <div className="space-y-4">
         {blocks.map((block, bIdx) => {
           if (block.type === 'task') {
+            const raw = block.lines[0]
+            const match = raw.match(/^(任务[一二三四五六七八九十\d]+|第[一二三四五六七八九十\d]+[章节条]|#+\s+)([:：\s]*)(.*)$/)
+            const badge = match ? match[1].replace(/#+\s*/, '章节') : '任务'
+            const title = match && match[3] ? match[3] : raw.replace(/^#+\s*/, '')
+
             return (
               <div
                 key={`task-${bIdx}`}
-                className="pt-5 pb-2 border-b border-black/[0.06] dark:border-white/[0.08] flex items-center space-x-2.5"
+                className={`mt-8 mb-4 pt-4 pb-3 border-b flex items-center space-x-3 ${themeStyles.taskHeaderBorder}`}
               >
-                <span className="w-2.5 h-2.5 rounded-full bg-purple-600 dark:bg-purple-400 shrink-0 shadow-xs" />
-                <h3 className="text-base font-bold text-purple-900 dark:text-purple-200 tracking-tight">
-                  {renderArticleText(block.lines[0])}
-                </h3>
+                <span className={`px-2.5 py-1 rounded-lg text-xs font-bold tracking-wide shrink-0 ${themeStyles.taskBadge}`}>
+                  {badge}
+                </span>
+                <h2 className={`text-base sm:text-lg font-bold tracking-tight ${themeStyles.taskTitle}`}>
+                  {renderArticleText(title)}
+                </h2>
               </div>
             )
           }
@@ -820,16 +944,16 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             return (
               <div
                 key={`code-${bIdx}`}
-                className="my-3 rounded-2xl bg-black/[0.03] dark:bg-white/[0.05] border border-black/[0.06] dark:border-white/[0.08] overflow-hidden shadow-2xs"
+                className={`my-3.5 rounded-2xl border overflow-hidden shadow-2xs ${themeStyles.codeCardBg}`}
               >
-                <div className="px-3.5 py-1.5 bg-black/[0.02] dark:bg-white/[0.03] border-b border-black/[0.04] dark:border-white/[0.06] flex items-center justify-between text-[11px] font-mono text-purple-700 dark:text-purple-300 font-semibold select-none">
+                <div className={`px-3.5 py-1.5 border-b flex items-center justify-between text-[11px] font-mono font-semibold select-none ${themeStyles.codeCardHeader}`}>
                   <div className="flex items-center space-x-1.5">
-                    <span className="w-2 h-2 rounded-full bg-amber-400/90 inline-block" />
+                    <span className="w-2 h-2 rounded-full bg-emerald-500/90 inline-block" />
                     <span>代码示例</span>
                   </div>
-                  <span className="text-[10px] opacity-60">Python</span>
+                  <span className="text-[10px] opacity-70">Python</span>
                 </div>
-                <pre className="p-3.5 font-mono text-xs leading-relaxed overflow-x-auto text-purple-950 dark:text-purple-100 select-text font-normal">
+                <pre className={`p-3.5 font-mono text-xs leading-relaxed overflow-x-auto select-text font-normal ${themeStyles.codeCardText}`}>
                   {block.lines.join('\n')}
                 </pre>
               </div>
@@ -837,16 +961,36 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           }
 
           if (block.type === 'list') {
+            const text = block.lines[0]
+            // 将条目首句动作（如 "创建一个列表，存三个成绩，打印出来。" 中的 "创建一个列表"）提取并加粗着色，使要求和动作一目了然
+            const commaIdx = text.search(/[，,：:]/)
+            const hasLead = commaIdx > 0 && commaIdx <= 22
+            const leadText = hasLead ? text.slice(0, commaIdx) : ''
+            const restText = hasLead ? text.slice(commaIdx) : text
+
             return (
               <div
                 key={`list-${bIdx}`}
-                className="flex items-start space-x-2.5 text-xs sm:text-sm leading-relaxed my-2"
+                className="flex items-start space-x-3 text-xs sm:text-sm leading-relaxed my-2.5"
               >
-                <span className="w-5 h-5 rounded-lg bg-purple-100 dark:bg-purple-950/60 text-purple-700 dark:text-purple-300 text-[11px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 shadow-2xs">
+                <span className={`w-5 h-5 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${themeStyles.listBadge}`}>
                   {block.meta}
                 </span>
                 <div className="flex-1 select-text">
-                  {renderArticleText(block.lines[0])}
+                  {hasLead ? (
+                    <>
+                      <strong className={`font-bold mr-0.5 ${themeStyles.listLeadBold}`}>
+                        {renderArticleText(leadText)}
+                      </strong>
+                      <span className={themeStyles.listRestText}>
+                        {renderArticleText(restText)}
+                      </span>
+                    </>
+                  ) : (
+                    <span className={themeStyles.listRestText}>
+                      {renderArticleText(text)}
+                    </span>
+                  )}
                 </div>
               </div>
             )
@@ -1128,6 +1272,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-white/80 text-zinc-600 border-black/[0.03]',
       asideEmptyIcon: 'bg-zinc-100 text-zinc-400',
       asideEmptyText: 'text-zinc-400',
+      // 正文排版与重点强调 (亮白主题)
+      taskBadge: 'bg-purple-100 text-purple-700 border border-purple-200/60 shadow-2xs',
+      taskTitle: 'text-purple-950 font-bold',
+      taskHeaderBorder: 'border-black/[0.06]',
+      listBadge: 'bg-purple-100 text-purple-700 font-bold border border-purple-200/50 shadow-2xs',
+      listLeadBold: 'text-purple-900 font-bold',
+      listRestText: 'text-zinc-700',
+      codeCardBg: 'bg-[#F8F9FB] border-black/[0.08]',
+      codeCardHeader: 'bg-[#EEF1F6] text-purple-700 border-black/[0.05]',
+      codeCardText: 'text-zinc-900',
+      // AI 伴读结构化 Markdown 样式 (亮白主题)
+      mdH1: 'text-purple-950 bg-purple-50/80 border-purple-200/60',
+      mdH2: 'text-purple-900 border-b border-black/[0.06]',
+      mdH2Badge: 'bg-purple-100 text-purple-700',
+      mdH3: 'text-indigo-800',
+      mdStrong: 'text-purple-900 bg-purple-100/70',
+      mdCode: 'text-pink-600 bg-pink-50 border-pink-200/60',
+      mdLi: 'text-zinc-700',
+      mdBullet: 'bg-purple-500',
       // 浮窗与批注弹窗
       modalContainer: 'bg-white/95 border-black/[0.08] text-zinc-800',
       modalHeader: 'border-zinc-100 text-zinc-800',
@@ -1179,6 +1342,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-[#FAF4E8]/90 text-[#5B4126] border-[#E8DEC8]',
       asideEmptyIcon: 'bg-[#EFE5D3] text-[#8C7A6B]',
       asideEmptyText: 'text-[#8C7A6B]',
+      // 正文排版与重点强调 (羊皮纸暖黄主题)
+      taskBadge: 'bg-[#EAE0CE] text-[#5A3110] border border-[#D8C2A0] shadow-2xs',
+      taskTitle: 'text-[#3D2514] font-bold',
+      taskHeaderBorder: 'border-[#E8DEC8]',
+      listBadge: 'bg-[#EAE0CE] text-[#5A3110] font-bold border border-[#D8C2A0] shadow-2xs',
+      listLeadBold: 'text-[#5A3110] font-bold',
+      listRestText: 'text-[#5B4734]',
+      codeCardBg: 'bg-[#F3ECE0] border-[#E2D5C3]',
+      codeCardHeader: 'bg-[#EAE0CE] text-[#7A4518] border-[#DFCFC0]',
+      codeCardText: 'text-[#3D3024]',
+      // AI 伴读结构化 Markdown 样式 (羊皮纸暖黄主题)
+      mdH1: 'text-[#3D2514] bg-[#EFE5D3] border-[#DFCFC0]',
+      mdH2: 'text-[#5A3110] border-b border-[#E8DEC8]',
+      mdH2Badge: 'bg-[#EAE0CE] text-[#5A3110]',
+      mdH3: 'text-[#7A4518]',
+      mdStrong: 'text-[#5A3110] bg-[#EAE0CE]/90',
+      mdCode: 'text-[#8B2500] bg-[#E8DDD0] border-[#D9CDBF]',
+      mdLi: 'text-[#4F3F30]',
+      mdBullet: 'bg-[#965A2C]',
       // 浮窗与批注弹窗
       modalContainer: 'bg-[#FAF4E8]/98 border-[#E8DEC8] text-[#3D3024]',
       modalHeader: 'border-[#EBE1D0] text-[#3D3024]',
@@ -1230,6 +1412,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-[#1C1C1E]/80 text-[#C7C7CC] border-white/[0.04]',
       asideEmptyIcon: 'bg-[#2C2C2E] text-[#8E8E93]',
       asideEmptyText: 'text-[#8E8E93]',
+      // 正文排版与重点强调 (深邃暗黑主题)
+      taskBadge: 'bg-purple-950/80 text-purple-300 border border-purple-800/60 shadow-2xs',
+      taskTitle: 'text-purple-100 font-bold',
+      taskHeaderBorder: 'border-white/[0.08]',
+      listBadge: 'bg-purple-950/80 text-purple-300 font-bold border border-purple-800/60 shadow-2xs',
+      listLeadBold: 'text-purple-200 font-bold',
+      listRestText: 'text-zinc-300',
+      codeCardBg: 'bg-[#18181A] border-white/[0.08]',
+      codeCardHeader: 'bg-[#222225] text-purple-300 border-white/[0.06]',
+      codeCardText: 'text-zinc-200',
+      // AI 伴读结构化 Markdown 样式 (深邃暗黑主题)
+      mdH1: 'text-purple-200 bg-purple-950/40 border-purple-800/50',
+      mdH2: 'text-purple-200 border-b border-white/[0.08]',
+      mdH2Badge: 'bg-purple-900/60 text-purple-300',
+      mdH3: 'text-indigo-300',
+      mdStrong: 'text-purple-200 bg-purple-900/50',
+      mdCode: 'text-pink-300 bg-pink-950/50 border-pink-800/50',
+      mdLi: 'text-[#D1D1D6]',
+      mdBullet: 'bg-purple-400',
       // 浮窗与批注弹窗
       modalContainer: 'bg-[#1C1C1E]/95 border-white/[0.1] text-[#E5E5EA]',
       modalHeader: 'border-white/[0.08] text-[#E5E5EA]',
@@ -2080,8 +2281,8 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 </div>
               )
             ) : (
-              <div className={`prose prose-sm max-w-none select-text cursor-text ${themeStyles.asideMarkdown}`}>
-                <ReactMarkdown>{summaries[mode]}</ReactMarkdown>
+              <div className="select-text cursor-text">
+                <CustomMarkdownRenderer content={summaries[mode]} themeStyles={themeStyles} />
                 {generating && (
                   <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
                 )}
@@ -2289,8 +2490,8 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 }}
               />
             ) : inlineResult.content ? (
-              <div className={`prose prose-xs ${themeStyles.asideMarkdown}`}>
-                <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
+              <div className="select-text cursor-text">
+                <CustomMarkdownRenderer content={inlineResult.content} themeStyles={themeStyles} />
               </div>
             ) : (
               <div className="flex items-center space-x-2 text-zinc-400 py-3">
