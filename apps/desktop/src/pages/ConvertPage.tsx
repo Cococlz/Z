@@ -16,11 +16,19 @@ import {
   Shuffle,
   Presentation,
   CheckCircle2,
+  ChevronDown,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 
 type SourceMode = 'library' | 'upload'
 type TargetFormat = 'txt' | 'docx' | 'markdown' | 'images'
+
+const FORMAT_OPTIONS: { id: TargetFormat; label: string; ext: string; icon: any; title: string }[] = [
+  { id: 'txt', label: '纯文本', ext: '.txt', icon: FileText, title: '纯净分段文本，适合听书、TTS 与轻量笔记' },
+  { id: 'docx', label: 'Word 讲义', ext: '.docx', icon: Presentation, title: 'PPTX 自动提炼每页标题和演讲者备注生成讲义；Markdown/PDF 生成多级大纲' },
+  { id: 'markdown', label: 'Markdown', ext: '.md', icon: Sparkles, title: '标准语法结构，适合导入知识库或二次深度研读' },
+  { id: 'images', label: '抽取图片', ext: '', icon: ImageIcon, title: '批量抽取文档中所有内嵌高清配图与图表' },
+]
 
 interface ImageItem {
   filename: string
@@ -51,6 +59,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
   // 来源模式：从知识库已有文档选取 vs 拖拽本地任意文件
   const [sourceMode, setSourceMode] = useState<SourceMode>('library')
   const [selectedDocId, setSelectedDocId] = useState<string>('')
+  const selectedDoc = documents.find((d) => d.id === selectedDocId)
 
   // 本地外部上传文件状态
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
@@ -285,16 +294,16 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
         </div>
 
         {/* 顶部操作：来源模式切换胶囊 */}
-        <div className="flex items-center bg-zinc-200/60 dark:bg-white/10 p-0.5 rounded-full text-xs font-semibold">
+        <div className="flex items-center bg-black/[0.04] dark:bg-white/[0.06] p-1 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] text-xs font-semibold">
           <button
             onClick={() => {
               setSourceMode('library')
               setResult(null)
             }}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-xl transition-all ${
               sourceMode === 'library'
-                ? 'bg-white text-zinc-900 shadow-2xs'
-                : 'text-zinc-500 hover:text-zinc-800'
+                ? 'bg-white dark:bg-[#2C2C2E] text-zinc-900 dark:text-white shadow-2xs font-semibold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
             <FolderOpen className="w-3.5 h-3.5" />
@@ -305,10 +314,10 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
               setSourceMode('upload')
               setResult(null)
             }}
-            className={`flex items-center space-x-1.5 px-3 py-1 rounded-full transition-all ${
+            className={`flex items-center space-x-1.5 px-3 py-1 rounded-xl transition-all ${
               sourceMode === 'upload'
-                ? 'bg-white text-zinc-900 shadow-2xs'
-                : 'text-zinc-500 hover:text-zinc-800'
+                ? 'bg-white dark:bg-[#2C2C2E] text-zinc-900 dark:text-white shadow-2xs font-semibold'
+                : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200'
             }`}
           >
             <Upload className="w-3.5 h-3.5" />
@@ -320,28 +329,43 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
       {/* 主体工作区 */}
       <main className="flex-1 overflow-hidden p-6 flex flex-col space-y-4 max-w-7xl w-full mx-auto">
         
-        {/* 顶部控制面板：源文件与目标格式选择器 */}
-        <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-5 border border-black/[0.04] dark:border-white/[0.08] shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 shrink-0 select-none transition-colors">
+        {/* 顶部控制面板：源文件与目标格式选择器 (Apple HIG 一体化工作流管线) */}
+        <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl p-3.5 border border-black/[0.04] dark:border-white/[0.08] shadow-sm flex flex-col xl:flex-row xl:items-center justify-between gap-3 shrink-0 select-none transition-colors">
           
-          {/* 左侧：源文件选择 */}
+          {/* 左侧：源文档选择器 / 拖拽区 */}
           <div className="flex-1 flex items-center space-x-3 min-w-0">
             {sourceMode === 'library' ? (
-              <div className="flex-1 flex items-center space-x-2">
-                <span className="text-xs font-semibold text-zinc-400 shrink-0">选择文档:</span>
-                <select
-                  value={selectedDocId}
-                  onChange={(e) => {
-                    setSelectedDocId(e.target.value)
-                    setResult(null)
-                  }}
-                  className="w-full max-w-md px-3 py-1.5 text-xs font-bold text-zinc-800 dark:text-zinc-100 bg-[#F2F2F7] dark:bg-white/[0.08] hover:bg-zinc-200/70 dark:hover:bg-white/[0.12] border border-black/[0.04] dark:border-white/[0.08] rounded-xl focus:outline-none transition-all truncate"
-                >
-                  {documents.map((d) => (
-                    <option key={d.id} value={d.id} className="dark:bg-[#2C2C2E] dark:text-white">
-                      [{d.file_type.toUpperCase()}] {d.name} ({Math.round(d.file_size / 1024)} KB)
-                    </option>
-                  ))}
-                </select>
+              <div className="relative flex-1 max-w-md">
+                <div className="w-full flex items-center justify-between px-3.5 py-2 rounded-2xl bg-[#F2F2F7] dark:bg-white/[0.05] hover:bg-zinc-200/60 dark:hover:bg-white/[0.09] border border-black/[0.04] dark:border-white/[0.06] transition-all cursor-pointer group">
+                  <div className="flex items-center space-x-2.5 min-w-0 pr-2">
+                    <span className="text-[10px] font-mono font-bold px-1.5 py-0.5 rounded-md bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/20 shrink-0">
+                      {(selectedDoc?.file_type || currentFileType() || 'DOC').toUpperCase()}
+                    </span>
+                    <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-200 truncate">
+                      {selectedDoc?.name || (documents.length === 0 ? '知识库暂无文档' : '请选择文档')}
+                    </span>
+                    {selectedDoc && (
+                      <span className="text-[10px] font-mono text-zinc-400 shrink-0 hidden sm:inline">
+                        ({Math.round(selectedDoc.file_size / 1024)} KB)
+                      </span>
+                    )}
+                  </div>
+                  <ChevronDown className="w-3.5 h-3.5 text-zinc-400 group-hover:text-zinc-600 dark:group-hover:text-zinc-200 transition-colors shrink-0" />
+                  <select
+                    value={selectedDocId}
+                    onChange={(e) => {
+                      setSelectedDocId(e.target.value)
+                      setResult(null)
+                    }}
+                    className="absolute inset-0 opacity-0 w-full h-full cursor-pointer"
+                  >
+                    {documents.map((d) => (
+                      <option key={d.id} value={d.id} className="dark:bg-[#2C2C2E] dark:text-white">
+                        [{d.file_type.toUpperCase()}] {d.name} ({Math.round(d.file_size / 1024)} KB)
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
             ) : (
               <div
@@ -349,7 +373,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`flex-1 border-2 border-dashed rounded-2xl px-4 py-2 flex items-center justify-between cursor-pointer transition-all ${
+                className={`flex-1 max-w-md border border-dashed rounded-2xl px-3.5 py-2 flex items-center justify-between cursor-pointer transition-all ${
                   isDragOver
                     ? 'border-amber-400 bg-amber-50/80 dark:bg-amber-950/40 scale-[1.01]'
                     : uploadedFile
@@ -365,8 +389,8 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
                   className="hidden"
                 />
                 <div className="flex items-center space-x-2 truncate">
-                  <Upload className={`w-4 h-4 ${uploadedFile ? 'text-emerald-600' : 'text-zinc-400'}`} />
-                  <span className="text-xs font-medium text-zinc-700 truncate">
+                  <Upload className={`w-3.5 h-3.5 ${uploadedFile ? 'text-emerald-500' : 'text-zinc-400'}`} />
+                  <span className="text-xs font-medium text-zinc-700 dark:text-zinc-200 truncate">
                     {uploadedFile ? uploadedFile.name : '点击选取或将 PDF / PPTX / Word 拖拽至此处'}
                   </span>
                 </div>
@@ -379,88 +403,50 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
             )}
           </div>
 
-          {/* 中间转换指示 */}
-          <div className="hidden md:flex items-center text-zinc-300">
-            <ArrowRight className="w-4 h-4" />
+          {/* 中间转换指示流水线箭头 */}
+          <div className="hidden xl:flex items-center justify-center w-7 h-7 rounded-full bg-black/[0.03] dark:bg-white/[0.04] border border-black/[0.04] dark:border-white/[0.06] text-zinc-400 dark:text-zinc-500 shrink-0">
+            <ArrowRight className="w-3.5 h-3.5" />
           </div>
 
-          {/* 右侧：目标格式四选一胶囊 */}
-          <div className="flex items-center space-x-1.5 flex-wrap">
-            <span className="text-xs font-semibold text-zinc-400 pr-1">导出为:</span>
+          {/* 右侧：一体化分段格式选择器与转换动作 */}
+          <div className="flex items-center space-x-2.5 flex-wrap gap-y-2">
             
-            {/* 1. 纯文本 TXT */}
-            <button
-              onClick={() => {
-                setTargetFormat('txt')
-                setResult(null)
-              }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
-                targetFormat === 'txt'
-                  ? 'bg-indigo-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
-              }`}
-              title="纯净分段文本，适合听书、TTS 与轻量笔记"
-            >
-              <FileText className="w-3.5 h-3.5" />
-              <span>纯文本 (.txt)</span>
-            </button>
+            {/* 目标格式分段控制器 */}
+            <div className="flex items-center bg-black/[0.04] dark:bg-white/[0.05] p-1 rounded-2xl border border-black/[0.04] dark:border-white/[0.06] shrink-0">
+              {FORMAT_OPTIONS.map((fmt) => {
+                const active = targetFormat === fmt.id
+                const Icon = fmt.icon
+                return (
+                  <button
+                    key={fmt.id}
+                    onClick={() => {
+                      setTargetFormat(fmt.id)
+                      setResult(null)
+                    }}
+                    title={fmt.title}
+                    className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs transition-all active:scale-95 ${
+                      active
+                        ? 'bg-white dark:bg-[#2C2C2E] text-zinc-900 dark:text-white font-semibold shadow-xs border border-black/[0.04] dark:border-white/[0.08]'
+                        : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-800 dark:hover:text-zinc-200 font-medium hover:bg-black/[0.02] dark:hover:bg-white/[0.04]'
+                    }`}
+                  >
+                    <Icon className={`w-3.5 h-3.5 ${active ? 'text-amber-500 dark:text-amber-400' : 'opacity-60'}`} />
+                    <span>{fmt.label}</span>
+                    {fmt.ext && (
+                      <span className={`text-[10px] font-mono ${active ? 'opacity-60' : 'opacity-40'}`}>
+                        {fmt.ext}
+                      </span>
+                    )}
+                  </button>
+                )
+              })}
+            </div>
 
-            {/* 2. Word 讲义大纲 DOCX */}
-            <button
-              onClick={() => {
-                setTargetFormat('docx')
-                setResult(null)
-              }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
-                targetFormat === 'docx'
-                  ? 'bg-blue-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
-              }`}
-              title="PPTX 自动提炼每页标题和演讲者备注生成讲义；Markdown/PDF 生成多级大纲"
-            >
-              <Presentation className="w-3.5 h-3.5" />
-              <span>Word 讲义 (.docx)</span>
-            </button>
-
-            {/* 3. 结构化 Markdown */}
-            <button
-              onClick={() => {
-                setTargetFormat('markdown')
-                setResult(null)
-              }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
-                targetFormat === 'markdown'
-                  ? 'bg-purple-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
-              }`}
-              title="标准语法结构，适合导入知识库或二次深度研读"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              <span>Markdown (.md)</span>
-            </button>
-
-            {/* 4. 图片素材提取 */}
-            <button
-              onClick={() => {
-                setTargetFormat('images')
-                setResult(null)
-              }}
-              className={`flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all active:scale-95 ${
-                targetFormat === 'images'
-                  ? 'bg-emerald-600 text-white shadow-xs'
-                  : 'bg-[#F2F2F7] dark:bg-white/[0.08] text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/80 dark:hover:bg-white/[0.12]'
-              }`}
-              title="批量抽取文档中所有内嵌高清配图与图表"
-            >
-              <ImageIcon className="w-3.5 h-3.5" />
-              <span>抽取图片</span>
-            </button>
-
-            {/* 开始转换大按钮 */}
+            {/* 一键转换操作按钮 */}
             <button
               onClick={handleStartConvert}
               disabled={converting || (sourceMode === 'upload' && !uploadedFile)}
-              className="ml-2 px-4 py-1.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition-all shadow-sm flex items-center space-x-1.5 disabled:opacity-50"
+              className="px-4 py-2 rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition-all shadow-sm hover:shadow-amber-500/20 flex items-center space-x-1.5 disabled:opacity-40 disabled:pointer-events-none shrink-0"
             >
               {converting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
               <span>{converting ? '正在转换...' : '一键转换'}</span>
