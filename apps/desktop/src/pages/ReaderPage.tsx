@@ -191,9 +191,32 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     })
   }
 
-  // 目录大纲抽屉状态与搜索
+  // 目录大纲抽屉状态与搜索及层级折叠
   const [showTocDrawer, setShowTocDrawer] = useState(false)
   const [tocSearchQuery, setTocSearchQuery] = useState('')
+  const [collapsedChapterIds, setCollapsedChapterIds] = useState<Set<string>>(new Set())
+
+  const toggleChapterCollapse = (chapterId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setCollapsedChapterIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(chapterId)) {
+        next.delete(chapterId)
+      } else {
+        next.add(chapterId)
+      }
+      return next
+    })
+  }
+
+  const toggleCollapseAll = () => {
+    const l1Items = (docContent?.toc || []).filter((item) => item.level === 1)
+    if (collapsedChapterIds.size > 0) {
+      setCollapsedChapterIds(new Set())
+    } else {
+      setCollapsedChapterIds(new Set(l1Items.map((item) => item.id)))
+    }
+  }
 
   // 加载当前文档的高亮划线与批注
   const loadAnnotations = async (docId: string) => {
@@ -856,6 +879,35 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     return cur
   })()
 
+  // 构建父子结构化大纲分组（实现主章节与子小节的清晰视觉分离与折叠）
+  const chapterGroups = React.useMemo(() => {
+    const rawList = docContent?.toc || []
+    if (rawList.length === 0) return []
+
+    const hasL1 = rawList.some((item) => item.level === 1)
+    if (!hasL1) {
+      return [{ chapter: null, children: rawList }]
+    }
+
+    const groups: { chapter: TocItem | null; children: TocItem[] }[] = []
+    let currentGroup: { chapter: TocItem | null; children: TocItem[] } | null = null
+
+    for (const item of rawList) {
+      if (item.level === 1) {
+        currentGroup = { chapter: item, children: [] }
+        groups.push(currentGroup)
+      } else {
+        if (currentGroup) {
+          currentGroup.children.push(item)
+        } else {
+          currentGroup = { chapter: null, children: [item] }
+          groups.push(currentGroup)
+        }
+      }
+    }
+    return groups
+  }, [docContent?.toc])
+
   // 大纲搜索过滤
   const filteredToc = (docContent?.toc || []).filter((item) =>
     tocSearchQuery ? item.title.toLowerCase().includes(tocSearchQuery.toLowerCase()) : true
@@ -1304,23 +1356,36 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
         {/* 目录大纲抽屉 (当展开时呈现为优雅的左侧大纲树) */}
         {showTocDrawer && readViewMode === 'extracted' && (
-          <aside className={`w-72 ${themeStyles.tocContainer} rounded-3xl shadow-sm border flex flex-col overflow-hidden shrink-0 transition-all duration-300`}>
+          <aside className={`w-80 ${themeStyles.tocContainer} rounded-3xl shadow-sm border flex flex-col overflow-hidden shrink-0 transition-all duration-300`}>
             {/* 顶栏 */}
             <div className={`p-3.5 border-b flex items-center justify-between ${themeStyles.tocHeader}`}>
               <div className="flex items-center space-x-1.5 text-xs font-bold">
                 <ListTree className="w-3.5 h-3.5 text-purple-600" />
                 <span>目录大纲</span>
-                <span className={`text-[11px] font-normal ${themeStyles.tocSubText}`}>
-                  ({docContent?.toc?.length || 0})
+                <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-full bg-black/5 dark:bg-white/10 opacity-70">
+                  {docContent?.toc?.filter((i) => i.level === 1).length
+                    ? `${docContent.toc.filter((i) => i.level === 1).length} 章 · ${docContent.toc.length} 节`
+                    : `${docContent?.toc?.length || 0} 节`}
                 </span>
               </div>
-              <button
-                onClick={() => setShowTocDrawer(false)}
-                className="w-6 h-6 rounded-lg hover:bg-black/10 flex items-center justify-center opacity-60 hover:opacity-100 transition-all"
-                title="收起大纲"
-              >
-                <X className="w-3.5 h-3.5" />
-              </button>
+              <div className="flex items-center space-x-1">
+                {chapterGroups.some((g) => g.children.length > 0) && (
+                  <button
+                    onClick={toggleCollapseAll}
+                    className="text-[11px] px-2 py-0.5 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 transition-colors opacity-70 hover:opacity-100"
+                    title={collapsedChapterIds.size > 0 ? '展开所有子小节' : '折叠所有子小节'}
+                  >
+                    {collapsedChapterIds.size > 0 ? '全部展开' : '全部折叠'}
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowTocDrawer(false)}
+                  className="w-6 h-6 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center opacity-60 hover:opacity-100 transition-all"
+                  title="收起大纲"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
             </div>
 
             {/* 搜索框 */}
@@ -1340,7 +1405,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             )}
 
             {/* 大纲列表 */}
-            <div className="flex-1 overflow-y-auto p-2 space-y-0.5">
+            <div className="flex-1 overflow-y-auto p-2.5 space-y-1">
               {!docContent?.toc || docContent.toc.length === 0 ? (
                 <div className={`p-6 text-center text-xs space-y-2 ${themeStyles.tocSubText}`}>
                   <p>该文档未检测到结构化目录</p>
@@ -1348,38 +1413,144 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     可点击右侧 AI 伴读中的「思维大纲」生成全局结构树
                   </p>
                 </div>
-              ) : filteredToc.length === 0 ? (
-                <div className={`p-6 text-center text-xs ${themeStyles.tocSubText}`}>
-                  <p>无匹配章节</p>
-                </div>
-              ) : (
-                filteredToc.map((item) => {
-                  const isActive = item.id === activeTocId
-                  const indentPx = Math.max(8, item.level * 12)
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => setCurrentPageIdx(item.page_index)}
-                      style={{ paddingLeft: `${indentPx}px` }}
-                      className={`w-full text-left py-2 pr-2.5 rounded-xl text-xs transition-all flex items-center justify-between group ${
-                        isActive
-                          ? themeStyles.tocItemActive + ' font-bold shadow-2xs'
-                          : themeStyles.tocItemInactive + ' font-normal'
-                      }`}
-                    >
-                      <span className="truncate pr-2">{item.title}</span>
-                      <span
-                        className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded-md ${
+              ) : tocSearchQuery ? (
+                filteredToc.length === 0 ? (
+                  <div className={`p-6 text-center text-xs ${themeStyles.tocSubText}`}>
+                    <p>无匹配章节</p>
+                  </div>
+                ) : (
+                  filteredToc.map((item) => {
+                    const isActive = item.id === activeTocId
+                    const indentPx = Math.max(8, item.level * 12)
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => setCurrentPageIdx(item.page_index)}
+                        style={{ paddingLeft: `${indentPx}px` }}
+                        className={`w-full text-left py-2 pr-2.5 rounded-xl text-xs transition-all flex items-center justify-between group ${
                           isActive
-                            ? themeStyles.tocBadgeActive + ' font-semibold'
-                            : themeStyles.tocBadgeInactive
+                            ? themeStyles.tocItemActive + ' font-bold shadow-2xs'
+                            : themeStyles.tocItemInactive + ' font-normal'
                         }`}
                       >
-                        P.{item.page_number || item.page_index + 1}
-                      </span>
-                    </button>
-                  )
-                })
+                        <span className="truncate pr-2">{item.title}</span>
+                        <span
+                          className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded-md ${
+                            isActive
+                              ? themeStyles.tocBadgeActive + ' font-semibold'
+                              : themeStyles.tocBadgeInactive
+                          }`}
+                        >
+                          P.{item.page_number || item.page_index + 1}
+                        </span>
+                      </button>
+                    )
+                  })
+                )
+              ) : (
+                <div className="space-y-1">
+                  {chapterGroups.map((group, groupIdx) => {
+                    const chapter = group.chapter
+                    const hasChildren = group.children.length > 0
+                    const isCollapsed = chapter ? collapsedChapterIds.has(chapter.id) : false
+                    const isChapterActive = chapter?.id === activeTocId
+                    const isAnyChildActive = group.children.some((c) => c.id === activeTocId)
+
+                    return (
+                      <div
+                        key={chapter ? chapter.id : `group-${groupIdx}`}
+                        className={`${groupIdx > 0 ? 'pt-2 mt-1.5 border-t border-black/[0.04] dark:border-white/[0.05]' : ''}`}
+                      >
+                        {chapter && (
+                          <div
+                            onClick={() => setCurrentPageIdx(chapter.page_index)}
+                            className={`w-full group cursor-pointer flex items-center justify-between py-2 px-2 rounded-xl text-xs transition-all ${
+                              isChapterActive
+                                ? themeStyles.tocItemActive + ' font-bold shadow-2xs'
+                                : isAnyChildActive
+                                ? 'bg-purple-50/50 dark:bg-purple-950/20 font-semibold text-purple-700 dark:text-purple-300'
+                                : themeStyles.tocItemInactive + ' font-semibold'
+                            }`}
+                          >
+                            <div className="flex items-center min-w-0 pr-2 space-x-1.5 flex-1">
+                              {hasChildren ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => toggleChapterCollapse(chapter.id, e)}
+                                  className="w-4 h-4 rounded-md flex items-center justify-center opacity-60 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10 shrink-0 transition-all"
+                                  title={isCollapsed ? '展开章节' : '折叠章节'}
+                                >
+                                  {isCollapsed ? (
+                                    <ChevronRight className="w-3.5 h-3.5" />
+                                  ) : (
+                                    <ChevronDown className="w-3.5 h-3.5" />
+                                  )}
+                                </button>
+                              ) : (
+                                <span className="w-1.5 h-1.5 rounded-full bg-purple-500/70 shrink-0 ml-1.5 mr-1" />
+                              )}
+                              <span className="truncate">{chapter.title}</span>
+                            </div>
+
+                            <span
+                              className={`text-[10px] font-mono shrink-0 px-1.5 py-0.5 rounded-md ${
+                                isChapterActive
+                                  ? themeStyles.tocBadgeActive + ' font-semibold'
+                                  : themeStyles.tocBadgeInactive
+                              }`}
+                            >
+                              P.{chapter.page_number || chapter.page_index + 1}
+                            </span>
+                          </div>
+                        )}
+
+                        {/* 子节树形列表 */}
+                        {hasChildren && !isCollapsed && (
+                          <div
+                            className={`${
+                              chapter ? 'ml-3 pl-2.5 my-0.5 border-l-2 border-black/[0.06] dark:border-white/[0.08]' : ''
+                            } space-y-0.5`}
+                          >
+                            {group.children.map((child) => {
+                              const isChildActive = child.id === activeTocId
+                              const levelIndent = Math.max(0, (child.level - 2) * 8)
+                              return (
+                                <button
+                                  key={child.id}
+                                  onClick={() => setCurrentPageIdx(child.page_index)}
+                                  style={{ paddingLeft: `${6 + levelIndent}px` }}
+                                  className={`w-full text-left py-1.5 pr-2 rounded-lg text-[11.5px] transition-all flex items-center justify-between group ${
+                                    isChildActive
+                                      ? themeStyles.tocItemActive + ' font-bold shadow-2xs'
+                                      : themeStyles.tocItemInactive + ' font-normal'
+                                  }`}
+                                >
+                                  <div className="flex items-center min-w-0 pr-2 space-x-1.5 flex-1">
+                                    <span
+                                      className={`w-1 h-1 rounded-full shrink-0 ${
+                                        isChildActive ? 'bg-purple-600' : 'bg-black/30 dark:bg-white/30'
+                                      }`}
+                                    />
+                                    <span className="truncate">{child.title}</span>
+                                  </div>
+                                  <span
+                                    className={`text-[9.5px] font-mono shrink-0 px-1 py-0.2 rounded ${
+                                      isChildActive
+                                        ? themeStyles.tocBadgeActive + ' font-medium'
+                                        : themeStyles.tocBadgeInactive
+                                    }`}
+                                  >
+                                    P.{child.page_number || child.page_index + 1}
+                                  </span>
+                                </button>
+                              )
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
               )}
             </div>
           </aside>
