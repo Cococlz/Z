@@ -36,6 +36,10 @@ export interface Document {
   char_count: number
   status: DocStatus
   error_message?: string | null
+  last_read_page?: number
+  last_read_at?: string | null
+  is_favorite?: boolean
+  tags?: string[]
   created_at: string
   updated_at: string
 }
@@ -80,6 +84,15 @@ interface DocStore {
   addDocument: (doc: Document) => void
   updateDocStatus: (id: string, status: DocStatus, error?: string) => void
   removeDocument: (id: string) => void
+
+  // 知识资产管理：收藏、标签与全库笔记导出
+  selectedTag: string | null
+  setSelectedTag: (tag: string | null) => void
+  onlyFavorites: boolean
+  setOnlyFavorites: (only: boolean) => void
+  toggleFavorite: (docId: string) => Promise<boolean>
+  updateDocTags: (docId: string, tags: string[]) => Promise<string[]>
+  exportAllNotes: () => Promise<{ filename: string; content: string; total_notes: number; total_docs: number }>
 }
 
 export const useDocStore = create<DocStore>((set, get) => ({
@@ -142,6 +155,7 @@ export const useDocStore = create<DocStore>((set, get) => ({
   setBackendUrl: (url) => {
     set({ backendUrl: url })
     get().fetchLlmConfig()
+    get().fetchDocuments()
   },
 
   fetchDocuments: async () => {
@@ -170,4 +184,66 @@ export const useDocStore = create<DocStore>((set, get) => ({
 
   removeDocument: (id) =>
     set((s) => ({ documents: s.documents.filter((d) => d.id !== id) })),
+
+  selectedTag: null,
+  setSelectedTag: (tag) => set({ selectedTag: tag }),
+  onlyFavorites: false,
+  setOnlyFavorites: (only) => set({ onlyFavorites: only }),
+
+  toggleFavorite: async (docId) => {
+    const { backendUrl, documents } = get()
+    const currentDoc = documents.find((d) => d.id === docId)
+    const nextFav = !currentDoc?.is_favorite
+    set({
+      documents: documents.map((d) => (d.id === docId ? { ...d, is_favorite: nextFav } : d)),
+    })
+    if (!backendUrl) return nextFav
+    try {
+      const res = await fetch(`${backendUrl}/api/v1/documents/${docId}/favorite`, { method: 'POST' })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      set({
+        documents: get().documents.map((d) => (d.id === docId ? { ...d, is_favorite: data.is_favorite } : d)),
+      })
+      return data.is_favorite
+    } catch (e) {
+      console.error('切换收藏状态失败', e)
+      set({
+        documents: get().documents.map((d) => (d.id === docId ? { ...d, is_favorite: !nextFav } : d)),
+      })
+      return !nextFav
+    }
+  },
+
+  updateDocTags: async (docId, tags) => {
+    const { backendUrl } = get()
+    set({
+      documents: get().documents.map((d) => (d.id === docId ? { ...d, tags } : d)),
+    })
+    if (!backendUrl) return tags
+    try {
+      const res = await fetch(`${backendUrl}/api/v1/documents/${docId}/tags`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tags }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      set({
+        documents: get().documents.map((d) => (d.id === docId ? { ...d, tags: data.tags } : d)),
+      })
+      return data.tags
+    } catch (e) {
+      console.error('更新标签失败', e)
+      return tags
+    }
+  },
+
+  exportAllNotes: async () => {
+    const { backendUrl } = get()
+    if (!backendUrl) throw new Error('后端未就绪')
+    const res = await fetch(`${backendUrl}/api/v1/documents/notes/export-all`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
 }))

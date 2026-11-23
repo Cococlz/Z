@@ -37,6 +37,8 @@ class Document(Base):
     error_message = Column(Text, nullable=True)
     last_read_page = Column(Integer, default=0)              # 上次阅读到的页码/分块序号 (0-based)
     last_read_at = Column(DateTime, nullable=True)           # 上次阅读时间
+    is_favorite = Column(Boolean, default=False, nullable=False) # 星标收藏
+    tags = Column(Text, default="[]", nullable=False)        # 标签列表 JSON
     created_at = Column(DateTime, default=_now)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
 

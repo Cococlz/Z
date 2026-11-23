@@ -44,7 +44,7 @@ def _safe_filename(original_name: str, file_hash: str) -> str:
 # ── Public API ────────────────────────────────────────────────────────────────
 
 def list_documents(db: Session) -> list[Document]:
-    return db.query(Document).order_by(Document.created_at.desc()).all()
+    return db.query(Document).order_by(Document.is_favorite.desc(), Document.created_at.desc()).all()
 
 
 def get_document(db: Session, doc_id: str) -> Document | None:

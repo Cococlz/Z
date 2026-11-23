@@ -69,6 +69,12 @@ def _migrate_db(engine) -> None:
             if "last_read_at" not in doc_cols:
                 cursor.execute("ALTER TABLE documents ADD COLUMN last_read_at DATETIME")
                 conn.connection.commit()
+            if "is_favorite" not in doc_cols:
+                cursor.execute("ALTER TABLE documents ADD COLUMN is_favorite BOOLEAN DEFAULT 0 NOT NULL")
+                conn.connection.commit()
+            if "tags" not in doc_cols:
+                cursor.execute("ALTER TABLE documents ADD COLUMN tags TEXT DEFAULT '[]' NOT NULL")
+                conn.connection.commit()
         except Exception as e:
             # 表可能尚不存在，create_all 会负责创建
             pass

@@ -3,7 +3,9 @@ Documents API Router — file import, listing, detail, chunks and deletion.
 """
 from __future__ import annotations
 
+import json
 import tempfile
+from datetime import datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
@@ -17,8 +19,15 @@ from app.api.schemas import (
     TaskResponse,
     TaskStatusOut,
     ChunkOut,
+    ToggleFavoriteResponse,
+    UpdateTagsRequest,
+    UpdateTagsResponse,
+    AllTagsResponse,
+    TagStat,
+    ExportNotesResponse,
 )
 from app.database.session import get_db
+from app.database.models import Annotation
 from app.services import document_service
 
 router = APIRouter(prefix="/documents", tags=["Documents"])
@@ -87,6 +96,114 @@ def list_documents(db: Session = Depends(get_db)):
 
 
 @router.get(
+    "/tags/all",
+    response_model=AllTagsResponse,
+    summary="Get all unique tags across documents with frequency",
+)
+def get_all_tags(db: Session = Depends(get_db)):
+    docs = document_service.list_documents(db)
+    counts: dict[str, int] = {}
+    for d in docs:
+        if d.tags:
+            try:
+                t_list = json.loads(d.tags)
+                if isinstance(t_list, list):
+                    for t in t_list:
+                        clean_t = str(t).strip()
+                        if clean_t:
+                            counts[clean_t] = counts.get(clean_t, 0) + 1
+            except Exception:
+                pass
+    sorted_tags = [TagStat(name=k, count=v) for k, v in sorted(counts.items(), key=lambda x: (-x[1], x[0]))]
+    return AllTagsResponse(tags=sorted_tags)
+
+
+@router.get(
+    "/notes/export-all",
+    response_model=ExportNotesResponse,
+    summary="Export all reading highlights and notes across library as Markdown",
+)
+def export_all_notes(db: Session = Depends(get_db)):
+    docs = document_service.list_documents(db)
+    total_notes = 0
+    total_docs = 0
+
+    now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
+    filename = f"智阅AI_全库读书笔记_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+
+    md_lines = [
+        f"# 📚 智阅 AI · 全知识库读书笔记资产总览",
+        f"> 本地优先个人智能工作站 · 资产导出于 {now_str}",
+        "",
+        "---",
+        "",
+    ]
+
+    for doc in docs:
+        annotations = (
+            db.query(Annotation)
+            .filter(Annotation.document_id == doc.id)
+            .order_by(Annotation.page_index.asc(), Annotation.created_at.asc())
+            .all()
+        )
+        if not annotations:
+            continue
+
+        total_docs += 1
+        total_notes += len(annotations)
+
+        tag_str = ""
+        if doc.tags:
+            try:
+                t_list = json.loads(doc.tags)
+                if t_list:
+                    tag_str = " · 标签: " + " ".join([f"`#{t}`" for t in t_list])
+            except Exception:
+                pass
+
+        fav_str = " ⭐ [星标收藏]" if doc.is_favorite else ""
+        md_lines.append(f"## 📖 《{doc.name}》{fav_str}")
+        md_lines.append(f"- **格式**: {doc.file_type.upper()} · **总篇幅**: {doc.page_count} 页 / {doc.char_count} 字{tag_str}")
+        md_lines.append(f"- **划线批注**: 共 {len(annotations)} 条")
+        md_lines.append("")
+
+        for i, a in enumerate(annotations, start=1):
+            color_badge = {
+                "yellow": "🟡 [重点]",
+                "green": "🟢 [理解]",
+                "purple": "🟣 [思考]",
+                "blue": "🔵 [疑问]",
+            }.get(a.color, "📌 [批注]")
+
+            p_num = a.page_index + 1
+            md_lines.append(f"### {i}. {color_badge} 第 {p_num} 页摘录")
+            md_lines.append(f"> {a.selected_text.strip()}")
+            md_lines.append("")
+
+            if a.note:
+                md_lines.append(f"- **✍️ 我的思考**: {a.note.strip()}")
+            if a.ai_insight:
+                md_lines.append(f"- **💡 AI 伴读洞察**: {a.ai_insight.strip()}")
+            if a.created_at:
+                md_lines.append(f"- *记录于: {a.created_at.strftime('%Y-%m-%d %H:%M')}*")
+            md_lines.append("")
+
+        md_lines.append("---")
+        md_lines.append("")
+
+    if total_notes == 0:
+        md_lines.append("*暂无任何划线与批注笔记。在「深度阅读」中划选任意文字并选择颜色即可沉淀知识资产。*")
+
+    content = "\n".join(md_lines)
+    return ExportNotesResponse(
+        filename=filename,
+        content=content,
+        total_notes=total_notes,
+        total_docs=total_docs,
+    )
+
+
+@router.get(
     "/{doc_id}",
     response_model=DocumentDetailOut,
     summary="Get document detail with optional preview text",
@@ -104,6 +221,43 @@ def get_document(doc_id: str, db: Session = Depends(get_db)):
         out.preview_text = chunks[0].content[:500]
 
     return out
+
+
+@router.post(
+    "/{doc_id}/favorite",
+    response_model=ToggleFavoriteResponse,
+    summary="Toggle favorite star status for a document",
+)
+def toggle_favorite(doc_id: str, db: Session = Depends(get_db)):
+    doc = document_service.get_document(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    doc.is_favorite = not bool(doc.is_favorite)
+    db.add(doc)
+    db.commit()
+    return ToggleFavoriteResponse(id=doc.id, is_favorite=doc.is_favorite)
+
+
+@router.post(
+    "/{doc_id}/tags",
+    response_model=UpdateTagsResponse,
+    summary="Update document tags",
+)
+def update_tags(doc_id: str, req: UpdateTagsRequest, db: Session = Depends(get_db)):
+    doc = document_service.get_document(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    clean_tags = []
+    seen = set()
+    for t in req.tags:
+        clean = t.strip().lstrip("#").strip()
+        if clean and clean not in seen:
+            seen.add(clean)
+            clean_tags.append(clean)
+    doc.tags = json.dumps(clean_tags, ensure_ascii=False)
+    db.add(doc)
+    db.commit()
+    return UpdateTagsResponse(id=doc.id, tags=clean_tags)
 
 
 @router.delete(

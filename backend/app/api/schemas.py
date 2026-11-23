@@ -4,7 +4,7 @@ Pydantic Schemas — 文档管理模块的请求与响应模型
 from __future__ import annotations
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 # ── 通用 ────────────────────────────────────────────────────────────────────
@@ -31,10 +31,58 @@ class DocumentOut(BaseModel):
     char_count: int
     status: str                        # pending | parsing | indexed | failed
     error_message: Optional[str]
+    last_read_page: Optional[int] = 0
+    last_read_at: Optional[datetime] = None
+    is_favorite: bool = False
+    tags: list[str] = []
     created_at: datetime
     updated_at: datetime
 
+    @field_validator("tags", mode="before")
+    @classmethod
+    def parse_tags(cls, v):
+        if isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                import json
+                data = json.loads(v)
+                return data if isinstance(data, list) else []
+            except Exception:
+                return []
+        return []
+
     model_config = {"from_attributes": True}
+
+
+class ToggleFavoriteResponse(BaseModel):
+    id: str
+    is_favorite: bool
+
+
+class UpdateTagsRequest(BaseModel):
+    tags: list[str]
+
+
+class UpdateTagsResponse(BaseModel):
+    id: str
+    tags: list[str]
+
+
+class TagStat(BaseModel):
+    name: str
+    count: int
+
+
+class AllTagsResponse(BaseModel):
+    tags: list[TagStat]
+
+
+class ExportNotesResponse(BaseModel):
+    filename: str
+    content: str
+    total_notes: int
+    total_docs: int
 
 
 class DocumentListResponse(BaseModel):
