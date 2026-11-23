@@ -20,6 +20,7 @@ import {
   GripHorizontal,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
+import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
 
 type SummaryMode = 'overall' | 'outline' | 'keypoints'
 type ReadViewMode = 'extracted' | 'native'
@@ -84,10 +85,23 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const storeUrl = useDocStore((s) => s.backendUrl)
   const backendUrl = propUrl || storeUrl || ''
 
-  const { documents, fetchDocuments } = useDocStore()
+  const { documents, fetchDocuments, llmConfig, fetchLlmConfig } = useDocStore()
   const targetDocId = useDocStore((s) => s.targetDocId)
   const targetPageIdx = useDocStore((s) => s.targetPageIdx)
   const clearTargetReaderDoc = useDocStore((s) => s.clearTargetReaderDoc)
+
+  const isLlmUnconfigured = !llmConfig?.is_configured && llmConfig?.provider !== 'ollama'
+  const isUnconfiguredError = (errText?: string | null) => {
+    if (!errText) return false
+    const lower = errText.toLowerCase()
+    return (
+      lower.includes('未配置') ||
+      lower.includes('not configured') ||
+      lower.includes('api key') ||
+      lower.includes('401') ||
+      lower.includes('authentication')
+    )
+  }
 
   const [selectedDocId, setSelectedDocId] = useState<string>('')
   const [docContent, setDocContent] = useState<DocContent | null>(null)
@@ -158,7 +172,8 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
   useEffect(() => {
     fetchDocuments()
-  }, [fetchDocuments])
+    fetchLlmConfig()
+  }, [fetchDocuments, fetchLlmConfig])
 
   useEffect(() => {
     if (!selectedDocId && documents.length > 0) {
@@ -340,6 +355,20 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       explain: '💡 深度原理解读',
       translate: '🌐 语境互译',
       summarize: '📝 核心速览',
+    }
+
+    if (isLlmUnconfigured) {
+      setInlineResult({
+        show: true,
+        title: titleMap[action],
+        action,
+        selectedText: textToUse,
+        targetLang: targetLangCode,
+        content: '未配置大模型 API Key',
+        isStreaming: false,
+      })
+      setTooltip((prev) => ({ ...prev, show: false }))
+      return
     }
 
     setInlineResult({
@@ -744,10 +773,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-zinc-800 select-text cursor-text selection:bg-purple-200 selection:text-purple-900"
           >
             {streamError ? (
-              <div className="bg-rose-50 border border-rose-200/60 rounded-2xl p-4 text-xs text-rose-600 space-y-1">
-                <div className="font-semibold">生成异常</div>
-                <div>{streamError}</div>
-              </div>
+              isUnconfiguredError(streamError) ? (
+                <NoApiKeyNotice
+                  contextDesc="生成长文档综合摘要、思维大纲与核心要点需要大模型引擎驱动"
+                  onActionSuccess={() => handleGenerate(true)}
+                />
+              ) : (
+                <div className="bg-rose-50 border border-rose-200/60 rounded-2xl p-4 text-xs text-rose-600 space-y-1">
+                  <div className="font-semibold">生成异常</div>
+                  <div>{streamError}</div>
+                </div>
+              )
             ) : generating && !summaries[mode] ? (
               <div className="h-full flex flex-col items-center justify-center space-y-3 text-zinc-400">
                 <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 animate-pulse">
@@ -756,15 +792,22 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 <span className="text-xs font-medium">Map-Reduce 正在通读全文提炼中...</span>
               </div>
             ) : !summaries[mode] ? (
-              <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3 text-zinc-400">
-                <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-400">
-                  <Sparkles className="w-5 h-5" />
+              isLlmUnconfigured ? (
+                <NoApiKeyNotice
+                  contextDesc="生成长文档综合摘要、思维大纲与核心要点需要大模型引擎驱动"
+                  onActionSuccess={() => handleGenerate(false)}
+                />
+              ) : (
+                <div className="h-full flex flex-col items-center justify-center text-center p-6 space-y-3 text-zinc-400">
+                  <div className="w-10 h-10 rounded-2xl bg-zinc-100 flex items-center justify-center text-zinc-400">
+                    <Sparkles className="w-5 h-5" />
+                  </div>
+                  <p className="text-xs max-w-[240px]">
+                    点击右上角「一键生成」，AI 将自动提炼本文档的
+                    {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : '核心关键知识点'}
+                  </p>
                 </div>
-                <p className="text-xs max-w-[240px]">
-                  点击右上角「一键生成」，AI 将自动提炼本文档的
-                  {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : '核心关键知识点'}
-                </p>
-              </div>
+              )
             ) : (
               <div className="prose prose-sm max-w-none prose-zinc select-text cursor-text">
                 <ReactMarkdown>{summaries[mode]}</ReactMarkdown>
@@ -934,16 +977,30 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </div>
           </div>
 
-          <div className="text-xs text-zinc-700 leading-relaxed max-h-80 overflow-y-auto font-sans prose prose-xs select-text cursor-text">
-            {inlineResult.content ? (
-              <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
+          <div className="text-xs text-zinc-700 leading-relaxed max-h-80 overflow-y-auto font-sans select-text cursor-text">
+            {isUnconfiguredError(inlineResult.content) ? (
+              <NoApiKeyNotice
+                compact={true}
+                contextDesc="划词深度解读与互译需要大模型引擎驱动"
+                onActionSuccess={() => {
+                  triggerInlineAction(
+                    inlineResult.action,
+                    inlineResult.targetLang,
+                    inlineResult.selectedText
+                  )
+                }}
+              />
+            ) : inlineResult.content ? (
+              <div className="prose prose-xs">
+                <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
+              </div>
             ) : (
               <div className="flex items-center space-x-2 text-zinc-400 py-3">
                 <Loader2 className="w-4 h-4 animate-spin text-purple-500" />
                 <span>AI 导师正在深入解读选中文段...</span>
               </div>
             )}
-            {inlineResult.isStreaming && (
+            {inlineResult.isStreaming && !isUnconfiguredError(inlineResult.content) && (
               <span className="inline-block w-1.5 h-3 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
             )}
           </div>

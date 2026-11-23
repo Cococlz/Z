@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
+import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
 
 interface Citation {
   doc_id: string
@@ -45,7 +46,20 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
   const storeUrl = useDocStore((s) => s.backendUrl)
   const backendUrl = propUrl || storeUrl || ''
 
-  const { documents, fetchDocuments } = useDocStore()
+  const { documents, fetchDocuments, llmConfig, fetchLlmConfig } = useDocStore()
+  const isLlmUnconfigured = !llmConfig?.is_configured && llmConfig?.provider !== 'ollama'
+  const isUnconfiguredError = (errText?: string | null) => {
+    if (!errText) return false
+    const lower = errText.toLowerCase()
+    return (
+      lower.includes('未配置') ||
+      lower.includes('not configured') ||
+      lower.includes('api key') ||
+      lower.includes('401') ||
+      lower.includes('authentication')
+    )
+  }
+
   const [selectedDocId, setSelectedDocId] = useState<string>('all')
 
   // 会话管理状态
@@ -69,7 +83,8 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
   useEffect(() => {
     fetchDocuments()
     loadConversations()
-  }, [backendUrl])
+    fetchLlmConfig()
+  }, [backendUrl, fetchLlmConfig])
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -158,6 +173,20 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
 
     const userMsgId = 'user_' + Date.now()
     const assistantMsgId = 'ai_' + Date.now()
+
+    if (isLlmUnconfigured) {
+      setMessages((prev) => [
+        ...prev,
+        { id: userMsgId, role: 'user', content: userText },
+        {
+          id: assistantMsgId,
+          role: 'assistant',
+          content: '未配置大模型 API Key',
+          isStreaming: false,
+        },
+      ])
+      return
+    }
 
     setMessages((prev) => [
       ...prev,
@@ -391,6 +420,14 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
         {/* 对话消息流 */}
         <main className="flex-1 overflow-y-auto px-6 py-6 space-y-6">
           <div className="max-w-3xl mx-auto space-y-6">
+            {isLlmUnconfigured && (
+              <div className="mb-4">
+                <NoApiKeyNotice
+                  contextDesc="与本地文档知识库深度对话问答需要大模型引擎驱动"
+                  onActionSuccess={() => fetchLlmConfig()}
+                />
+              </div>
+            )}
             {messages.map((msg) => (
               <div
                 key={msg.id}
@@ -418,9 +455,17 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                         : 'bg-white text-zinc-800 rounded-2xl rounded-tl-sm border border-black/[0.04] shadow-sm'
                     }`}
                   >
-                    <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert">
-                      <ReactMarkdown>{msg.content}</ReactMarkdown>
-                    </div>
+                    {isUnconfiguredError(msg.content) ? (
+                      <NoApiKeyNotice
+                        compact={true}
+                        contextDesc="回答您的问题需要大模型引擎驱动"
+                        onActionSuccess={() => fetchLlmConfig()}
+                      />
+                    ) : (
+                      <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert">
+                        <ReactMarkdown>{msg.content}</ReactMarkdown>
+                      </div>
+                    )}
                     {msg.isStreaming && (
                       <span className="inline-block w-1.5 h-4 ml-1 bg-blue-500 animate-pulse rounded-full align-middle" />
                     )}

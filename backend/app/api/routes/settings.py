@@ -153,7 +153,7 @@ def save_model_settings(req: ModelConfigRequest, db: Session = Depends(get_db)):
     _set_setting_value(db, "llm_provider", req.provider.strip())
     if req.api_key.strip():
         _set_setting_value(db, "llm_api_key", req.api_key.strip())
-    elif req.provider == "ollama" and not _get_setting_value(db, "llm_api_key", ""):
+    elif req.provider == "ollama":
         _set_setting_value(db, "llm_api_key", "ollama")
 
     _set_setting_value(db, "llm_model", req.model.strip())
@@ -161,6 +161,18 @@ def save_model_settings(req: ModelConfigRequest, db: Session = Depends(get_db)):
     _set_setting_value(db, "llm_temperature", str(req.temperature))
     db.commit()
     return {"ok": True, "message": "模型配置已更新"}
+
+
+@router.post("/quick-switch-ollama")
+def quick_switch_ollama(db: Session = Depends(get_db)):
+    """一键切换为本地 Ollama 免密纯离线引擎预设"""
+    _set_setting_value(db, "llm_provider", "ollama")
+    _set_setting_value(db, "llm_api_key", "ollama")
+    _set_setting_value(db, "llm_model", "deepseek-r1:1.5b")
+    _set_setting_value(db, "llm_base_url", "http://127.0.0.1:11434/v1")
+    _set_setting_value(db, "llm_temperature", "0.3")
+    db.commit()
+    return {"ok": True, "message": "已成功切换为本地 Ollama 引擎（纯离线 · 零费用）"}
 
 
 @router.post("/preferences")

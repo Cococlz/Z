@@ -15,9 +15,7 @@ import { SettingsPage } from './pages/SettingsPage'
 import { ReaderPage } from './pages/ReaderPage'
 import { ConvertPage } from './pages/ConvertPage'
 import { SpotlightModal } from './components/SpotlightModal'
-import { useDocStore } from './stores/docStore'
-
-type Page = 'library' | 'chat' | 'reader' | 'convert' | 'settings'
+import { useDocStore, Page } from './stores/docStore'
 
 interface NavItem {
   id: Page
@@ -35,7 +33,8 @@ const NAV_ITEMS: NavItem[] = [
 ]
 
 export default function App() {
-  const [page, setPage] = useState<Page>('library')
+  const page = useDocStore((s) => s.activePage)
+  const setPage = useDocStore((s) => s.setActivePage)
   const [spotlightOpen, setSpotlightOpen] = useState(false)
   const setTargetReaderDoc = useDocStore((s) => s.setTargetReaderDoc)
 

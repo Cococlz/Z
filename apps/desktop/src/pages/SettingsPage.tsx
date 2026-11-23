@@ -182,6 +182,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
         showToast('模型配置已成功更新')
         setApiKey('')
         await loadOverview()
+        useDocStore.getState().fetchLlmConfig()
       } else {
         alert(`保存失败：HTTP ${resp.status}`)
       }

@@ -79,9 +79,12 @@ class DeepSeekProvider(BaseLLMProvider):
             elif "NotFoundError" in type(e).__name__ or "404" in err_str:
                 error_msg = f"模型不存在或 Base URL 路径错误: {self._model}"
             elif "ConnectTimeout" in type(e).__name__ or "timed out" in err_str.lower():
-                error_msg = "连接大模型服务超时，请检查网络或代理设置"
+                error_msg = "连接大模型服务超时，请检查网络或本地 Ollama 是否启动"
             elif "ConnectError" in type(e).__name__ or "Connection refused" in err_str:
-                error_msg = "无法连接至 Base URL，请检查网络或是否需要代理"
+                if "11434" in str(self._client.base_url):
+                    error_msg = "无法连接至本地 Ollama，请确认是否已安装并启动 Ollama 服务 (如在终端运行 ollama serve)"
+                else:
+                    error_msg = "无法连接至 Base URL，请检查网络或是否需要代理"
             else:
                 error_msg = f"{type(e).__name__}: {err_str[:120]}"
             return {"ok": False, "latency_ms": -1, "model": "", "error": error_msg}
@@ -105,6 +108,7 @@ def get_provider() -> DeepSeekProvider:
             row = db.query(AppSetting).filter(AppSetting.key == key).first()
             return row.value if row else default
 
+        provider = _get("llm_provider", "deepseek")
         api_key = _get("llm_api_key")
         model = _get("llm_model", "deepseek-chat")
         base_url = _get("llm_base_url", "https://api.deepseek.com")
@@ -112,6 +116,9 @@ def get_provider() -> DeepSeekProvider:
         db.close()
 
     if not api_key:
-        raise ValueError("LLM API key not configured. Please set it in Settings.")
+        if provider == "ollama" or "11434" in base_url or "ollama" in model.lower():
+            api_key = "ollama"
+        else:
+            raise ValueError("未配置大模型 API Key。请在系统设置中配置 DeepSeek 密钥，或一键切换为本地纯离线大模型。")
 
     return DeepSeekProvider(api_key=api_key, model=model, base_url=base_url)
