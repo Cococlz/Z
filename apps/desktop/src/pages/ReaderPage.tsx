@@ -958,6 +958,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-white/80 text-zinc-600 border-black/[0.03]',
       asideEmptyIcon: 'bg-zinc-100 text-zinc-400',
       asideEmptyText: 'text-zinc-400',
+      // 浮窗与批注弹窗
+      modalContainer: 'bg-white/95 border-black/[0.08] text-zinc-800',
+      modalHeader: 'border-zinc-100 text-zinc-800',
+      modalInput: 'bg-[#F2F2F7] border-black/[0.04] text-zinc-800 placeholder:text-zinc-400',
+      modalQuote: 'bg-[#F2F2F7] text-zinc-700',
+      modalBtn: 'bg-zinc-100 hover:bg-zinc-200 text-zinc-600',
+      modalCancelBtn: 'text-zinc-500 hover:text-zinc-800 hover:bg-zinc-100',
     },
     sepia: {
       pageBg: 'bg-[#F3ECE0]',
@@ -1002,6 +1009,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-[#FAF4E8]/90 text-[#5B4126] border-[#E8DEC8]',
       asideEmptyIcon: 'bg-[#EFE5D3] text-[#8C7A6B]',
       asideEmptyText: 'text-[#8C7A6B]',
+      // 浮窗与批注弹窗
+      modalContainer: 'bg-[#FAF4E8]/98 border-[#E8DEC8] text-[#3D3024]',
+      modalHeader: 'border-[#EBE1D0] text-[#3D3024]',
+      modalInput: 'bg-[#EFE5D3] border-[#E8DEC8] text-[#3D3024] placeholder-[#8C7A6B]',
+      modalQuote: 'bg-[#F3ECE0] text-[#5B4126]',
+      modalBtn: 'bg-[#EFE5D3] hover:bg-[#E5DAC6] text-[#4F3F30]',
+      modalCancelBtn: 'text-[#74614E] hover:text-[#3D3024] hover:bg-[#EFE5D3]',
     },
     dark: {
       pageBg: 'bg-[#121214]',
@@ -1046,6 +1060,13 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideNoteInner: 'bg-[#1C1C1E]/80 text-[#C7C7CC] border-white/[0.04]',
       asideEmptyIcon: 'bg-[#2C2C2E] text-[#8E8E93]',
       asideEmptyText: 'text-[#8E8E93]',
+      // 浮窗与批注弹窗
+      modalContainer: 'bg-[#1C1C1E]/95 border-white/[0.1] text-[#E5E5EA]',
+      modalHeader: 'border-white/[0.08] text-[#E5E5EA]',
+      modalInput: 'bg-[#2C2C2E] border-white/[0.08] text-[#E5E5EA] placeholder-zinc-500',
+      modalQuote: 'bg-[#242426] text-[#C7C7CC]',
+      modalBtn: 'bg-[#2C2C2E] hover:bg-[#3A3A3C] text-[#E5E5EA]',
+      modalCancelBtn: 'text-[#8E8E93] hover:text-[#E5E5EA] hover:bg-[#2C2C2E]',
     },
   }[appearance.theme]
 
@@ -1971,15 +1992,15 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         <div
           id="zhiyue-inline-card"
           style={{ left: `${cardPos.x}px`, top: `${cardPos.y}px` }}
-          className="fixed z-50 w-[420px] max-w-[calc(100vw-32px)] bg-white/95 backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border border-black/[0.08] animate-fade-in space-y-3"
+          className={`fixed z-50 w-[420px] max-w-[calc(100vw-32px)] ${themeStyles.modalContainer} backdrop-blur-2xl rounded-3xl p-5 shadow-2xl border animate-fade-in space-y-3 transition-colors duration-200`}
         >
           {/* 顶部可拖拽操作栏 */}
           <div
             onMouseDown={handleCardDragStart}
-            className="flex items-center justify-between pb-2 border-b border-zinc-100 cursor-grab active:cursor-grabbing select-none"
+            className={`flex items-center justify-between pb-2 border-b ${themeStyles.modalHeader} cursor-grab active:cursor-grabbing select-none`}
             title="按住此处可自由拖拽位置"
           >
-            <div className="flex items-center space-x-2 text-xs font-bold text-zinc-800">
+            <div className="flex items-center space-x-2 text-xs font-bold">
               <Sparkles className="w-4 h-4 text-purple-600" />
               <span>{inlineResult.title}</span>
             </div>
@@ -2011,7 +2032,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   <div
                     id="zhiyue-lang-menu"
                     onMouseDown={(e) => e.stopPropagation()}
-                    className="absolute left-0 top-full mt-1.5 w-44 bg-white/95 backdrop-blur-2xl rounded-2xl shadow-xl border border-black/[0.08] p-1.5 z-50 animate-fade-in space-y-0.5"
+                    className={`absolute left-0 top-full mt-1.5 w-44 ${themeStyles.modalContainer} backdrop-blur-2xl rounded-2xl shadow-xl border p-1.5 z-50 animate-fade-in space-y-0.5`}
                   >
                     {TRANSLATE_LANGUAGES.map((item) => {
                       const isSelected = item.code === (inlineResult.targetLang || translateLang)
@@ -2027,15 +2048,15 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           }}
                           className={`w-full flex items-center justify-between px-2.5 py-1.5 rounded-xl text-xs transition-all ${
                             isSelected
-                              ? 'bg-blue-50 text-blue-700 font-bold'
-                              : 'text-zinc-700 hover:bg-zinc-100 font-medium'
+                              ? 'bg-purple-100/80 text-purple-900 font-bold dark:bg-purple-900/60 dark:text-purple-100'
+                              : 'hover:bg-black/5 dark:hover:bg-white/10 font-medium'
                           }`}
                         >
                           <div className="flex items-center space-x-2">
                             <span>{item.flag}</span>
                             <span>{item.label}</span>
                           </div>
-                          {isSelected && <Check className="w-3.5 h-3.5 text-blue-600" />}
+                          {isSelected && <Check className="w-3.5 h-3.5 text-purple-600 dark:text-purple-300" />}
                         </button>
                       )
                     })}
@@ -2045,7 +2066,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             )}
 
             {/* 拖拽指示条 */}
-            <div className="flex items-center space-x-1 text-zinc-300 hover:text-zinc-500 transition-colors">
+            <div className="flex items-center space-x-1 opacity-40 hover:opacity-80 transition-opacity">
               <GripHorizontal className="w-4 h-4" />
             </div>
 
@@ -2053,14 +2074,14 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             <div className="flex items-center space-x-1.5">
               <button
                 onClick={handleCopyResult}
-                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
+                className={`w-6 h-6 rounded-full ${themeStyles.modalBtn} flex items-center justify-center active:scale-90 transition-all`}
                 title="复制 AI 解答内容"
               >
                 {copiedResult ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
               </button>
               <button
                 onClick={() => setInlineResult((prev) => ({ ...prev, show: false }))}
-                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-90 transition-all"
+                className={`w-6 h-6 rounded-full ${themeStyles.modalBtn} flex items-center justify-center active:scale-90 transition-all`}
                 title="关闭浮窗"
               >
                 <X className="w-3.5 h-3.5" />
@@ -2068,7 +2089,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </div>
           </div>
 
-          <div className="text-xs text-zinc-700 leading-relaxed max-h-80 overflow-y-auto font-sans select-text cursor-text">
+          <div className="text-xs leading-relaxed max-h-80 overflow-y-auto font-sans select-text cursor-text">
             {isUnconfiguredError(inlineResult.content) ? (
               <NoApiKeyNotice
                 compact={true}
@@ -2082,7 +2103,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 }}
               />
             ) : inlineResult.content ? (
-              <div className="prose prose-xs">
+              <div className={`prose prose-xs ${themeStyles.asideMarkdown}`}>
                 <ReactMarkdown>{inlineResult.content}</ReactMarkdown>
               </div>
             ) : (
@@ -2098,10 +2119,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
           {/* 将此解答收录至读书笔记 */}
           {inlineResult.content && !isUnconfiguredError(inlineResult.content) && (
-            <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+            <div className={`pt-2 border-t ${themeStyles.modalHeader} flex items-center justify-between`}>
               <button
                 onClick={handleSaveAiInsightToNotes}
-                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-2xs"
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-500/15 hover:bg-purple-500/25 text-purple-700 dark:text-purple-300 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-2xs"
               >
                 <Bookmark className="w-3.5 h-3.5" />
                 <span>{savedAiToNote ? '✓ 已收录至读书笔记' : '📌 保存此解读为我的读书笔记'}</span>
@@ -2113,30 +2134,30 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
       {/* 划线与批注笔记详情编辑弹窗 */}
       {activeAnnotation && (
-        <div className="fixed inset-0 bg-black/25 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in select-none">
-          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-black/[0.06] space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in select-none">
+          <div className={`rounded-3xl max-w-md w-full p-5 shadow-2xl border space-y-4 ${themeStyles.modalContainer} transition-colors duration-200`}>
+            <div className={`flex items-center justify-between pb-2 border-b ${themeStyles.modalHeader}`}>
               <div className="flex items-center space-x-2">
                 <Bookmark className="w-4 h-4 text-purple-600" />
-                <span className="text-xs font-bold text-zinc-800">
+                <span className="text-xs font-bold">
                   第 {activeAnnotation.page_index + 1} 页划线批注
                 </span>
               </div>
               <button
                 onClick={() => setActiveAnnotation(null)}
-                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-95 transition-all"
+                className={`w-6 h-6 rounded-full flex items-center justify-center ${themeStyles.modalBtn} active:scale-95 transition-all`}
               >
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
 
             {/* 划选原文 */}
-            <div className="bg-[#F2F2F7] rounded-2xl p-3 text-xs text-zinc-700 leading-relaxed italic border-l-2 border-purple-500 max-h-32 overflow-y-auto">
+            <div className={`rounded-2xl p-3 text-xs leading-relaxed italic border-l-2 border-purple-500 max-h-32 overflow-y-auto ${themeStyles.modalQuote}`}>
               “{activeAnnotation.selected_text}”
             </div>
 
             {/* 颜色切换 */}
-            <div className="flex items-center space-x-3 text-xs text-zinc-500">
+            <div className="flex items-center space-x-3 text-xs opacity-70">
               <span>高亮颜色:</span>
               <div className="flex items-center space-x-2">
                 {(['yellow', 'green', 'purple', 'blue'] as HighlightColor[]).map((c) => (
@@ -2154,7 +2175,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     }}
                     className={`w-5 h-5 rounded-full transition-all ${
                       c === 'yellow' ? 'bg-amber-400' : c === 'green' ? 'bg-emerald-400' : c === 'purple' ? 'bg-purple-400' : 'bg-blue-400'
-                    } ${activeAnnotation.color === c ? 'ring-2 ring-zinc-800 scale-110' : 'hover:scale-105'}`}
+                    } ${activeAnnotation.color === c ? 'ring-2 ring-purple-500 scale-110' : 'hover:scale-105'}`}
                   />
                 ))}
               </div>
@@ -2162,20 +2183,20 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
             {/* 个人思考输入框 */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-zinc-600">✍️ 我的读书批注与思考：</label>
+              <label className="text-xs font-semibold opacity-70">✍️ 我的读书批注与思考：</label>
               <textarea
                 rows={3}
                 value={editingNoteText}
                 onChange={(e) => setEditingNoteText(e.target.value)}
                 placeholder="记录您对这一段的理解、灵感或疑问..."
-                className="w-full bg-[#F2F2F7] border border-black/[0.04] rounded-2xl p-3 text-xs text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none leading-relaxed"
+                className={`w-full rounded-2xl p-3 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none leading-relaxed ${themeStyles.modalInput}`}
               />
             </div>
 
             {/* AI 解读内容（如有） */}
             {activeAnnotation.ai_insight && (
-              <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3 text-xs text-purple-900 leading-relaxed space-y-1 max-h-32 overflow-y-auto">
-                <span className="font-bold text-[11px] text-purple-700">💡 关联的 AI 伴读解析：</span>
+              <div className="bg-purple-500/10 border border-purple-500/20 rounded-2xl p-3 text-xs text-purple-800 dark:text-purple-200 leading-relaxed space-y-1 max-h-32 overflow-y-auto">
+                <span className="font-bold text-[11px] text-purple-600 dark:text-purple-400">💡 关联的 AI 伴读解析：</span>
                 <p className="whitespace-pre-wrap">{activeAnnotation.ai_insight}</p>
               </div>
             )}
@@ -2184,7 +2205,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             <div className="flex items-center justify-between pt-1">
               <button
                 onClick={(e) => handleDeleteAnnotation(activeAnnotation.id, e)}
-                className="flex items-center space-x-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl transition-colors"
+                className="flex items-center space-x-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-500/10 px-2.5 py-1.5 rounded-xl transition-colors"
               >
                 <Trash2 className="w-3.5 h-3.5" />
                 <span>删除此划线</span>
@@ -2193,7 +2214,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <div className="flex items-center space-x-2">
                 <button
                   onClick={() => setActiveAnnotation(null)}
-                  className="px-3.5 py-1.5 text-xs text-zinc-500 hover:text-zinc-800 rounded-xl hover:bg-zinc-100 transition-colors"
+                  className={`px-3.5 py-1.5 text-xs rounded-xl transition-colors ${themeStyles.modalCancelBtn}`}
                 >
                   取消
                 </button>
