@@ -12,7 +12,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.database.session import get_db
-from app.database.models import Document, DocumentChunk, Summary
+from app.database.models import Document, DocumentChunk, Summary, Annotation
 from app.services.summary_service import generate_summary_stream
 
 logger = logging.getLogger(__name__)
@@ -23,6 +23,20 @@ router = APIRouter(prefix="/api/v1/reader", tags=["reader"])
 class SummarizeRequest(BaseModel):
     summary_type: str = "overall"  # overall | outline | keypoints
     force_refresh: bool = False
+
+
+class CreateAnnotationRequest(BaseModel):
+    document_id: str
+    page_index: int = 0
+    selected_text: str
+    color: str = "yellow"  # yellow | green | purple | blue
+    note: Optional[str] = None
+    ai_insight: Optional[str] = None
+
+
+class UpdateAnnotationRequest(BaseModel):
+    color: Optional[str] = None
+    note: Optional[str] = None
 
 
 class InlineActionRequest(BaseModel):
@@ -211,3 +225,139 @@ async def inline_action_stream(req: InlineActionRequest):
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── 高亮划线与批注笔记 API ───────────────────────────────────────────────────
+
+@router.get("/{doc_id}/annotations")
+def get_document_annotations(doc_id: str, db: Session = Depends(get_db)):
+    """获取指定文档的所有高亮划线与批注列表"""
+    notes = (
+        db.query(Annotation)
+        .filter(Annotation.document_id == doc_id)
+        .order_by(Annotation.page_index.asc(), Annotation.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": a.id,
+            "document_id": a.document_id,
+            "page_index": a.page_index,
+            "selected_text": a.selected_text,
+            "color": a.color,
+            "note": a.note,
+            "ai_insight": a.ai_insight,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+            "updated_at": a.updated_at.isoformat() if a.updated_at else None,
+        }
+        for a in notes
+    ]
+
+
+@router.post("/annotations")
+def create_annotation(req: CreateAnnotationRequest, db: Session = Depends(get_db)):
+    """创建新的高亮划线或批注笔记"""
+    doc = db.query(Document).filter(Document.id == req.document_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    anno = Annotation(
+        document_id=req.document_id,
+        page_index=req.page_index,
+        selected_text=req.selected_text.strip(),
+        color=req.color,
+        note=req.note.strip() if req.note else None,
+        ai_insight=req.ai_insight.strip() if req.ai_insight else None,
+    )
+    db.add(anno)
+    db.commit()
+    db.refresh(anno)
+    return {
+        "ok": True,
+        "annotation": {
+            "id": anno.id,
+            "document_id": anno.document_id,
+            "page_index": anno.page_index,
+            "selected_text": anno.selected_text,
+            "color": anno.color,
+            "note": anno.note,
+            "ai_insight": anno.ai_insight,
+            "created_at": anno.created_at.isoformat() if anno.created_at else None,
+        }
+    }
+
+
+@router.put("/annotations/{annotation_id}")
+def update_annotation(annotation_id: str, req: UpdateAnnotationRequest, db: Session = Depends(get_db)):
+    """修改高亮批注笔记内容或更换颜色"""
+    anno = db.query(Annotation).filter(Annotation.id == annotation_id).first()
+    if not anno:
+        raise HTTPException(status_code=404, detail="批注未找到")
+
+    if req.color is not None:
+        anno.color = req.color
+    if req.note is not None:
+        anno.note = req.note.strip() if req.note else None
+
+    db.commit()
+    return {"ok": True, "message": "批注已更新"}
+
+
+@router.delete("/annotations/{annotation_id}")
+def delete_annotation(annotation_id: str, db: Session = Depends(get_db)):
+    """删除指定高亮划线批注"""
+    anno = db.query(Annotation).filter(Annotation.id == annotation_id).first()
+    if not anno:
+        raise HTTPException(status_code=404, detail="批注未找到")
+    db.delete(anno)
+    db.commit()
+    return {"ok": True, "message": "批注已删除"}
+
+
+@router.get("/{doc_id}/annotations/export")
+def export_annotations_markdown(doc_id: str, db: Session = Depends(get_db)):
+    """将文档的所有划线与读书笔记结构化导出为 Markdown 笔记本"""
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    notes = (
+        db.query(Annotation)
+        .filter(Annotation.document_id == doc_id)
+        .order_by(Annotation.page_index.asc(), Annotation.created_at.asc())
+        .all()
+    )
+
+    color_emoji = {
+        "yellow": "🟡",
+        "green": "🟢",
+        "purple": "🟣",
+        "blue": "🔵",
+    }
+
+    lines = [
+        f"# 《{doc.name}》读书笔记与高亮摘录\n",
+        f"> 智阅 AI 纯本地读书笔记本 · 共收集 {len(notes)} 条高亮划线与思考\n",
+    ]
+
+    current_page = -1
+    for a in notes:
+        if a.page_index != current_page:
+            current_page = a.page_index
+            lines.append(f"\n## 第 {current_page + 1} 页摘录\n")
+
+        emoji = color_emoji.get(a.color, "🟡")
+        lines.append(f"> {emoji} **原文摘录**：{a.selected_text}\n")
+        if a.note:
+            lines.append(f"✍️ **我的思考笔记**：{a.note}\n")
+        if a.ai_insight:
+            lines.append(f"💡 **AI 伴读解析**：\n```\n{a.ai_insight}\n```\n")
+        lines.append("---\n")
+
+    md_content = "\n".join(lines)
+    return {
+        "doc_id": doc.id,
+        "name": doc.name,
+        "total_count": len(notes),
+        "markdown": md_content,
+    }

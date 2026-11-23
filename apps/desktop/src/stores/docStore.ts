@@ -40,10 +40,11 @@ interface DocStore {
   fetchLlmConfig: () => Promise<void>
   quickSwitchToOllama: () => Promise<{ ok: boolean; message: string }>
 
-  // Spotlight 全局搜索直接唤起阅读器定位目标
+  // Spotlight / Chat 跨页面阅读器穿梭定位目标
   targetDocId: string | null
   targetPageIdx: number
-  setTargetReaderDoc: (docId: string, pageIdx?: number) => void
+  targetHighlightText: string | null
+  setTargetReaderDoc: (docId: string, pageIdx?: number, highlightText?: string) => void
   clearTargetReaderDoc: () => void
 
   setBackendUrl: (url: string) => void
@@ -97,10 +98,11 @@ export const useDocStore = create<DocStore>((set, get) => ({
 
   targetDocId: null,
   targetPageIdx: 0,
-  setTargetReaderDoc: (docId, pageIdx = 0) =>
-    set({ targetDocId: docId, targetPageIdx: pageIdx }),
+  targetHighlightText: null,
+  setTargetReaderDoc: (docId, pageIdx = 0, highlightText?: string) =>
+    set({ targetDocId: docId, targetPageIdx: pageIdx, targetHighlightText: highlightText || null }),
   clearTargetReaderDoc: () =>
-    set({ targetDocId: null, targetPageIdx: 0 }),
+    set({ targetDocId: null, targetPageIdx: 0, targetHighlightText: null }),
 
   setBackendUrl: (url) => {
     set({ backendUrl: url })

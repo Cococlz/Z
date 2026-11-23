@@ -18,12 +18,27 @@ import {
   X,
   FileSearch,
   GripHorizontal,
+  Bookmark,
+  Trash2,
+  Download,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
 
-type SummaryMode = 'overall' | 'outline' | 'keypoints'
+type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes'
 type ReadViewMode = 'extracted' | 'native'
+export type HighlightColor = 'yellow' | 'green' | 'purple' | 'blue'
+
+export interface AnnotationItem {
+  id: string
+  document_id: string
+  page_index: number
+  selected_text: string
+  color: HighlightColor
+  note?: string | null
+  ai_insight?: string | null
+  created_at?: string
+}
 
 interface PageChunk {
   chunk_index: number
@@ -79,6 +94,7 @@ const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'overall', label: '全局摘要', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
   { id: 'outline', label: '思维大纲', icon: <ListTree className="w-3.5 h-3.5" /> },
   { id: 'keypoints', label: '核心要点', icon: <Lightbulb className="w-3.5 h-3.5" /> },
+  { id: 'notes', label: '划线笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
 ]
 
 export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUrl }) => {
@@ -88,6 +104,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const { documents, fetchDocuments, llmConfig, fetchLlmConfig } = useDocStore()
   const targetDocId = useDocStore((s) => s.targetDocId)
   const targetPageIdx = useDocStore((s) => s.targetPageIdx)
+  const targetHighlightText = useDocStore((s) => s.targetHighlightText)
   const clearTargetReaderDoc = useDocStore((s) => s.clearTargetReaderDoc)
 
   const isLlmUnconfigured = !llmConfig?.is_configured && llmConfig?.provider !== 'ollama'
@@ -108,6 +125,39 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null)
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(0)
   const [loadingContent, setLoadingContent] = useState(false)
+
+  // 划线与批注笔记状态
+  const [annotations, setAnnotations] = useState<AnnotationItem[]>([])
+  const [activeAnnotation, setActiveAnnotation] = useState<AnnotationItem | null>(null)
+  const [editingNoteText, setEditingNoteText] = useState('')
+  const [savingNote, setSavingNote] = useState(false)
+  const [savedAiToNote, setSavedAiToNote] = useState(false)
+  const [toastMsg, setToastMsg] = useState<string | null>(null)
+
+  const showToast = (msg: string) => {
+    setToastMsg(msg)
+    setTimeout(() => setToastMsg(null), 2400)
+  }
+
+  // 加载当前文档的高亮划线与批注
+  const loadAnnotations = async (docId: string) => {
+    if (!docId || !backendUrl) return
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/${docId}/annotations`)
+      if (resp.ok) {
+        const data = await resp.json()
+        setAnnotations(data)
+      }
+    } catch (e) {
+      console.warn('加载批注失败', e)
+    }
+  }
+
+  useEffect(() => {
+    if (selectedDocId) {
+      loadAnnotations(selectedDocId)
+    }
+  }, [selectedDocId, backendUrl])
 
   // 监听来自 Spotlight 全局搜索的指定文档与页码跳转
   useEffect(() => {
@@ -339,6 +389,204 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         setTooltip((prev) => ({ ...prev, show: false }))
       }
     }, 20)
+  }
+
+  // 1. 添加高亮划线
+  const handleCreateHighlight = async (color: HighlightColor = 'yellow', customText?: string) => {
+    const textToHighlight = customText || tooltip.selectedText
+    if (!textToHighlight || !selectedDocId || !backendUrl) return
+
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: selectedDocId,
+          page_index: currentPageIdx,
+          selected_text: textToHighlight,
+          color,
+        }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.annotation) {
+          setAnnotations((prev) => [...prev, data.annotation])
+          const colorName = color === 'yellow' ? '黄色' : color === 'green' ? '绿色' : color === 'purple' ? '紫色' : '蓝色'
+          showToast(`已添加${colorName}高亮划线`)
+        }
+      }
+    } catch (e) {
+      console.error('保存高亮失败', e)
+    } finally {
+      setTooltip((prev) => ({ ...prev, show: false }))
+      window.getSelection()?.removeAllRanges()
+    }
+  }
+
+  // 2. 将 AI 解读/翻译收录至读书笔记
+  const handleSaveAiInsightToNotes = async () => {
+    if (!inlineResult.selectedText || !inlineResult.content || !selectedDocId || !backendUrl) return
+    setSavedAiToNote(true)
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: selectedDocId,
+          page_index: currentPageIdx,
+          selected_text: inlineResult.selectedText,
+          color: 'purple',
+          ai_insight: `【${inlineResult.title}】\n${inlineResult.content}`,
+        }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.annotation) {
+          setAnnotations((prev) => [...prev, data.annotation])
+          showToast('已收录至读书笔记本')
+        }
+      }
+    } catch (e) {
+      console.error('收录笔记失败', e)
+    }
+  }
+
+  // 3. 修改批注笔记
+  const handleUpdateAnnotationNote = async () => {
+    if (!activeAnnotation || !backendUrl) return
+    setSavingNote(true)
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations/${activeAnnotation.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          note: editingNoteText,
+          color: activeAnnotation.color,
+        }),
+      })
+      if (resp.ok) {
+        setAnnotations((prev) =>
+          prev.map((a) => (a.id === activeAnnotation.id ? { ...a, note: editingNoteText, color: activeAnnotation.color } : a))
+        )
+        setActiveAnnotation((prev) => (prev ? { ...prev, note: editingNoteText } : null))
+        showToast('批注笔记已保存')
+      }
+    } catch (e) {
+      console.error('更新笔记失败', e)
+    } finally {
+      setSavingNote(false)
+    }
+  }
+
+  // 4. 删除高亮划线
+  const handleDeleteAnnotation = async (annoId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation()
+    if (!backendUrl) return
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations/${annoId}`, {
+        method: 'DELETE',
+      })
+      if (resp.ok) {
+        setAnnotations((prev) => prev.filter((a) => a.id !== annoId))
+        if (activeAnnotation?.id === annoId) {
+          setActiveAnnotation(null)
+        }
+        showToast('已删除高亮')
+      }
+    } catch (e) {
+      console.error('删除高亮失败', e)
+    }
+  }
+
+  // 5. 导出读书笔记本
+  const handleExportAnnotations = async () => {
+    if (!selectedDocId || !backendUrl) return
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/annotations/export`)
+      if (resp.ok) {
+        const data = await resp.json()
+        const blob = new Blob([data.markdown], { type: 'text/markdown;charset=utf-8' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `${data.name}_读书笔记本.md`
+        link.click()
+        URL.revokeObjectURL(url)
+        showToast('已导出读书笔记本')
+      }
+    } catch (e) {
+      console.error('导出笔记失败', e)
+    }
+  }
+
+  // 6. 渲染正文划线高亮与跳转闪烁
+  const renderArticleText = (content: string) => {
+    const pageAnnotations = annotations.filter((a) => a.page_index === currentPageIdx)
+    if (pageAnnotations.length === 0 && !targetHighlightText) {
+      return content
+    }
+
+    const targets: { text: string; anno?: AnnotationItem; isTarget?: boolean }[] = []
+
+    if (targetHighlightText && content.includes(targetHighlightText)) {
+      targets.push({ text: targetHighlightText, isTarget: true })
+    }
+
+    pageAnnotations.forEach((a) => {
+      if (a.selected_text && content.includes(a.selected_text)) {
+        targets.push({ text: a.selected_text, anno: a })
+      }
+    })
+
+    if (targets.length === 0) return content
+
+    targets.sort((a, b) => b.text.length - a.text.length)
+
+    const escapeRegex = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const pattern = new RegExp(`(${targets.map((t) => escapeRegex(t.text)).join('|')})`, 'g')
+
+    const parts = content.split(pattern)
+    return parts.map((part, idx) => {
+      const matched = targets.find((t) => t.text === part)
+      if (matched) {
+        if (matched.isTarget) {
+          return (
+            <mark
+              key={`target_${idx}`}
+              className="bg-amber-300 text-zinc-900 px-1 py-0.5 rounded-sm font-semibold shadow-xs ring-4 ring-amber-400/60 animate-pulse inline-block"
+              title="📌 AI 问答引用来源段落"
+            >
+              {part}
+            </mark>
+          )
+        }
+
+        if (matched.anno) {
+          const colorCls = {
+            yellow: 'bg-amber-200/80 border-b-2 border-amber-400 hover:bg-amber-300',
+            green: 'bg-emerald-200/80 border-b-2 border-emerald-400 hover:bg-emerald-300',
+            purple: 'bg-purple-200/80 border-b-2 border-purple-400 hover:bg-purple-300',
+            blue: 'bg-blue-200/80 border-b-2 border-blue-400 hover:bg-blue-300',
+          }[matched.anno.color] || 'bg-amber-200/80 border-b-2 border-amber-400'
+
+          return (
+            <mark
+              key={`anno_${matched.anno.id}_${idx}`}
+              onClick={(e) => {
+                e.stopPropagation()
+                setActiveAnnotation(matched.anno || null)
+                setEditingNoteText(matched.anno?.note || '')
+              }}
+              className={`${colorCls} text-zinc-900 px-0.5 rounded-xs font-normal cursor-pointer transition-colors selection:bg-purple-300`}
+              title={matched.anno.note ? `✍️ 批注: ${matched.anno.note}` : '点击查看/编辑此划线'}
+            >
+              {part}
+            </mark>
+          )
+        }
+      }
+      return part
+    })
   }
 
   // 触发划词 AI 动作 (explain / translate / summarize)
@@ -644,7 +892,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 ) : (
                   <>
                     <article className="prose prose-zinc max-w-none text-zinc-800 leading-relaxed text-[15px] space-y-4 whitespace-pre-wrap font-normal select-text cursor-text">
-                      {currentPage.content}
+                      {renderArticleText(currentPage.content)}
                     </article>
 
                     {/* 页面底部多章节流转导航（当文档存在多个分页时显著呈现） */}
@@ -717,36 +965,49 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             <div className="flex items-center justify-between px-1">
               <div className="flex items-center space-x-1.5 text-xs font-bold text-zinc-800">
                 <Sparkles className="w-3.5 h-3.5 text-purple-600" />
-                <span>AI 伴读分析</span>
+                <span>{mode === 'notes' ? '读书笔记与批注' : 'AI 伴读分析'}</span>
               </div>
 
-              {/* 生成 / 重新生成按钮 */}
-              <button
-                onClick={() => handleGenerate(Boolean(summaries[mode]))}
-                disabled={generating || !selectedDocId}
-                className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white active:scale-95 transition-all shadow-xs disabled:opacity-50 flex items-center space-x-1"
-              >
-                {generating ? (
-                  <>
-                    <Loader2 className="w-3 h-3 animate-spin" />
-                    <span>分析中...</span>
-                  </>
-                ) : summaries[mode] ? (
-                  <>
-                    <RefreshCw className="w-3 h-3" />
-                    <span>重新生成</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3 h-3" />
-                    <span>一键生成</span>
-                  </>
-                )}
-              </button>
+              {/* 生成 / 重新生成 或 导出笔记按钮 */}
+              {mode === 'notes' ? (
+                annotations.length > 0 && (
+                  <button
+                    onClick={handleExportAnnotations}
+                    className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white active:scale-95 transition-all shadow-xs flex items-center space-x-1"
+                    title="导出为 Markdown 读书笔记"
+                  >
+                    <Download className="w-3 h-3" />
+                    <span>导出笔记</span>
+                  </button>
+                )
+              ) : (
+                <button
+                  onClick={() => handleGenerate(Boolean(summaries[mode]))}
+                  disabled={generating || !selectedDocId}
+                  className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white active:scale-95 transition-all shadow-xs disabled:opacity-50 flex items-center space-x-1"
+                >
+                  {generating ? (
+                    <>
+                      <Loader2 className="w-3 h-3 animate-spin" />
+                      <span>分析中...</span>
+                    </>
+                  ) : summaries[mode] ? (
+                    <>
+                      <RefreshCw className="w-3 h-3" />
+                      <span>重新生成</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3 h-3" />
+                      <span>一键生成</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* iOS 分段控制器 */}
-            <div className="grid grid-cols-3 bg-zinc-200/70 p-1 rounded-2xl gap-1 text-xs font-semibold">
+            <div className="grid grid-cols-4 bg-zinc-200/70 p-1 rounded-2xl gap-1 text-xs font-semibold">
               {MODE_TABS.map((tab) => {
                 const active = mode === tab.id
                 return (
@@ -760,19 +1021,118 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     }`}
                   >
                     {tab.icon}
-                    <span>{tab.label}</span>
+                    <span>{tab.id === 'notes' ? `笔记 (${annotations.length})` : tab.label}</span>
                   </button>
                 )
               })}
             </div>
           </div>
 
-          {/* 摘要正文展示区（支持划选 AI 伴读内容进行二次解读/翻译） */}
+          {/* 摘要正文或读书笔记展示区 */}
           <div
             onMouseUp={handleMouseUp}
             className="flex-1 overflow-y-auto p-5 text-sm leading-relaxed text-zinc-800 select-text cursor-text selection:bg-purple-200 selection:text-purple-900"
           >
-            {streamError ? (
+            {mode === 'notes' ? (
+              <div className="h-full flex flex-col space-y-3">
+                <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+                  <span className="text-xs font-bold text-zinc-700">
+                    已收录 {annotations.length} 条划线与思考
+                  </span>
+                  {annotations.length > 0 && (
+                    <span className="text-[11px] text-zinc-400">
+                      点击笔记卡片可跳转至正文
+                    </span>
+                  )}
+                </div>
+
+                {annotations.length === 0 ? (
+                  <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-zinc-400">
+                    <div className="w-12 h-12 rounded-3xl bg-zinc-100 flex items-center justify-center text-zinc-400">
+                      <Bookmark className="w-6 h-6" />
+                    </div>
+                    <h3 className="text-sm font-bold text-zinc-700">暂无高亮划线</h3>
+                    <p className="text-xs max-w-[220px]">
+                      在正文中选中任意文字，点击颜色圆点即可划线；也可以在 AI 解读后点击「📌 存入笔记」。
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3 overflow-y-auto pr-1">
+                    {annotations.map((a) => {
+                      const colorBadge = {
+                        yellow: 'bg-amber-100 text-amber-800 border-amber-300',
+                        green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
+                        purple: 'bg-purple-100 text-purple-800 border-purple-300',
+                        blue: 'bg-blue-100 text-blue-800 border-blue-300',
+                      }[a.color] || 'bg-amber-100 text-amber-800 border-amber-300'
+
+                      return (
+                        <div
+                          key={a.id}
+                          className="bg-[#F2F2F7]/60 hover:bg-[#F2F2F7] rounded-2xl p-3 border border-black/[0.04] space-y-2 transition-all group"
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-1.5">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${colorBadge}`}>
+                                第 {a.page_index + 1} 页
+                              </span>
+                              <span className="text-[10px] text-zinc-400 font-mono">
+                                {a.created_at ? new Date(a.created_at).toLocaleDateString() : ''}
+                              </span>
+                            </div>
+
+                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => {
+                                  setCurrentPageIdx(a.page_index)
+                                  showToast(`已跳转到第 ${a.page_index + 1} 页`)
+                                }}
+                                className="px-2 py-0.5 rounded-lg bg-white hover:bg-zinc-100 text-[11px] font-medium text-zinc-700 shadow-2xs"
+                                title="跳转到正文所在页"
+                              >
+                                定位
+                              </button>
+                              <button
+                                onClick={(e) => handleDeleteAnnotation(a.id, e)}
+                                className="w-6 h-6 rounded-lg bg-white hover:bg-rose-50 text-zinc-400 hover:text-rose-600 flex items-center justify-center shadow-2xs transition-colors"
+                                title="删除该条划线"
+                              >
+                                <Trash2 className="w-3 h-3" />
+                              </button>
+                            </div>
+                          </div>
+
+                          <div
+                            onClick={() => {
+                              setCurrentPageIdx(a.page_index)
+                              setActiveAnnotation(a)
+                              setEditingNoteText(a.note || '')
+                            }}
+                            className="text-xs text-zinc-800 font-medium leading-relaxed border-l-2 border-purple-400 pl-2 cursor-pointer hover:text-purple-700 transition-colors"
+                          >
+                            “{a.selected_text}”
+                          </div>
+
+                          {a.note && (
+                            <div className="text-[11px] text-zinc-600 bg-white/80 rounded-xl p-2 border border-black/[0.03] space-y-0.5">
+                              <span className="font-bold text-amber-600">✍️ 批注：</span>
+                              <span>{a.note}</span>
+                            </div>
+                          )}
+
+                          {a.ai_insight && (
+                            <div className="text-[11px] text-purple-700 bg-purple-50/60 rounded-xl p-2 border border-purple-100 space-y-0.5">
+                              <span className="font-bold">💡 AI 沉淀：</span>
+                              <p className="line-clamp-3">{a.ai_insight}</p>
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : streamError ? (
               isUnconfiguredError(streamError) ? (
                 <NoApiKeyNotice
                   contextDesc="生成长文档综合摘要、思维大纲与核心要点需要大模型引擎驱动"
@@ -827,8 +1187,34 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         <div
           id="zhiyue-highlight-tooltip"
           style={{ top: tooltip.y, left: tooltip.x }}
-          className="fixed z-50 flex items-center bg-zinc-900/90 text-white backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-white/10 space-x-1 animate-fade-in"
+          className="fixed z-50 flex items-center bg-zinc-900/90 text-white backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-white/10 space-x-1.5 animate-fade-in select-none"
         >
+          {/* 四色高亮划线按钮 */}
+          <div className="flex items-center space-x-1.5 px-1.5 py-0.5">
+            <button
+              onClick={() => handleCreateHighlight('yellow')}
+              className="w-3.5 h-3.5 rounded-full bg-amber-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
+              title="黄色高亮划线"
+            />
+            <button
+              onClick={() => handleCreateHighlight('green')}
+              className="w-3.5 h-3.5 rounded-full bg-emerald-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
+              title="绿色高亮划线"
+            />
+            <button
+              onClick={() => handleCreateHighlight('purple')}
+              className="w-3.5 h-3.5 rounded-full bg-purple-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
+              title="紫色高亮划线"
+            />
+            <button
+              onClick={() => handleCreateHighlight('blue')}
+              className="w-3.5 h-3.5 rounded-full bg-blue-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
+              title="蓝色高亮划线"
+            />
+          </div>
+
+          <span className="w-px h-3 bg-white/20" />
+
           <button
             onClick={() => triggerInlineAction('explain')}
             className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-amber-300 font-medium"
@@ -1004,6 +1390,127 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               <span className="inline-block w-1.5 h-3 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
             )}
           </div>
+
+          {/* 将此解答收录至读书笔记 */}
+          {inlineResult.content && !isUnconfiguredError(inlineResult.content) && (
+            <div className="pt-2 border-t border-zinc-100 flex items-center justify-between">
+              <button
+                onClick={handleSaveAiInsightToNotes}
+                className="flex items-center space-x-1.5 px-3 py-1.5 bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl text-xs font-semibold active:scale-95 transition-all shadow-2xs"
+              >
+                <Bookmark className="w-3.5 h-3.5" />
+                <span>{savedAiToNote ? '✓ 已收录至读书笔记' : '📌 保存此解读为我的读书笔记'}</span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* 划线与批注笔记详情编辑弹窗 */}
+      {activeAnnotation && (
+        <div className="fixed inset-0 bg-black/25 backdrop-blur-xs flex items-center justify-center z-50 p-4 animate-fade-in select-none">
+          <div className="bg-white rounded-3xl max-w-md w-full p-5 shadow-2xl border border-black/[0.06] space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-zinc-100">
+              <div className="flex items-center space-x-2">
+                <Bookmark className="w-4 h-4 text-purple-600" />
+                <span className="text-xs font-bold text-zinc-800">
+                  第 {activeAnnotation.page_index + 1} 页划线批注
+                </span>
+              </div>
+              <button
+                onClick={() => setActiveAnnotation(null)}
+                className="w-6 h-6 rounded-full bg-zinc-100 hover:bg-zinc-200 flex items-center justify-center text-zinc-500 active:scale-95 transition-all"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+
+            {/* 划选原文 */}
+            <div className="bg-[#F2F2F7] rounded-2xl p-3 text-xs text-zinc-700 leading-relaxed italic border-l-2 border-purple-500 max-h-32 overflow-y-auto">
+              “{activeAnnotation.selected_text}”
+            </div>
+
+            {/* 颜色切换 */}
+            <div className="flex items-center space-x-3 text-xs text-zinc-500">
+              <span>高亮颜色:</span>
+              <div className="flex items-center space-x-2">
+                {(['yellow', 'green', 'purple', 'blue'] as HighlightColor[]).map((c) => (
+                  <button
+                    key={c}
+                    onClick={() => {
+                      setActiveAnnotation((prev) => (prev ? { ...prev, color: c } : null))
+                      fetch(`${backendUrl}/api/v1/reader/annotations/${activeAnnotation.id}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ color: c }),
+                      }).then(() => {
+                        setAnnotations((prev) => prev.map((a) => (a.id === activeAnnotation.id ? { ...a, color: c } : a)))
+                      })
+                    }}
+                    className={`w-5 h-5 rounded-full transition-all ${
+                      c === 'yellow' ? 'bg-amber-400' : c === 'green' ? 'bg-emerald-400' : c === 'purple' ? 'bg-purple-400' : 'bg-blue-400'
+                    } ${activeAnnotation.color === c ? 'ring-2 ring-zinc-800 scale-110' : 'hover:scale-105'}`}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {/* 个人思考输入框 */}
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-zinc-600">✍️ 我的读书批注与思考：</label>
+              <textarea
+                rows={3}
+                value={editingNoteText}
+                onChange={(e) => setEditingNoteText(e.target.value)}
+                placeholder="记录您对这一段的理解、灵感或疑问..."
+                className="w-full bg-[#F2F2F7] border border-black/[0.04] rounded-2xl p-3 text-xs text-zinc-800 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-purple-500/20 resize-none leading-relaxed"
+              />
+            </div>
+
+            {/* AI 解读内容（如有） */}
+            {activeAnnotation.ai_insight && (
+              <div className="bg-purple-50/70 border border-purple-100 rounded-2xl p-3 text-xs text-purple-900 leading-relaxed space-y-1 max-h-32 overflow-y-auto">
+                <span className="font-bold text-[11px] text-purple-700">💡 关联的 AI 伴读解析：</span>
+                <p className="whitespace-pre-wrap">{activeAnnotation.ai_insight}</p>
+              </div>
+            )}
+
+            {/* 底部按钮 */}
+            <div className="flex items-center justify-between pt-1">
+              <button
+                onClick={(e) => handleDeleteAnnotation(activeAnnotation.id, e)}
+                className="flex items-center space-x-1 text-xs text-rose-500 hover:text-rose-700 hover:bg-rose-50 px-2.5 py-1.5 rounded-xl transition-colors"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>删除此划线</span>
+              </button>
+
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setActiveAnnotation(null)}
+                  className="px-3.5 py-1.5 text-xs text-zinc-500 hover:text-zinc-800 rounded-xl hover:bg-zinc-100 transition-colors"
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleUpdateAnnotationNote}
+                  disabled={savingNote}
+                  className="px-4 py-1.5 bg-purple-600 hover:bg-purple-700 text-white text-xs font-bold rounded-xl shadow-sm active:scale-95 transition-all flex items-center space-x-1"
+                >
+                  {savingNote ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
+                  <span>保存批注</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 底部轻量提示 Toast */}
+      {toastMsg && (
+        <div className="fixed bottom-6 right-6 z-50 bg-zinc-900/90 backdrop-blur-md text-white text-xs font-medium px-4 py-2 rounded-2xl shadow-xl border border-white/10 animate-fade-in flex items-center space-x-2">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>{toastMsg}</span>
         </div>
       )}
 

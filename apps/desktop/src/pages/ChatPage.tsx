@@ -14,6 +14,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   X,
+  BookOpen,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
@@ -555,10 +556,25 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
               {activeCitation.text_preview}
             </div>
 
-            <div className="flex justify-end">
+            <div className="flex items-center justify-between pt-2">
+              <button
+                onClick={() => {
+                  const docId = activeCitation.doc_id
+                  const pageIdx = activeCitation.page_number ? Math.max(0, activeCitation.page_number - 1) : 0
+                  const snippet = activeCitation.text_preview.slice(0, 40)
+                  setActiveCitation(null)
+                  useDocStore.getState().setTargetReaderDoc(docId, pageIdx, snippet)
+                  useDocStore.getState().setActivePage('reader')
+                }}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-blue-600 hover:bg-blue-700 text-white active:scale-95 transition-all flex items-center space-x-1.5 shadow-sm"
+              >
+                <BookOpen className="w-3.5 h-3.5" />
+                <span>📖 在深度阅读器中定位原著</span>
+              </button>
+
               <button
                 onClick={() => setActiveCitation(null)}
-                className="px-5 py-2 rounded-full text-xs font-semibold bg-zinc-900 text-white hover:bg-zinc-800 active:scale-95 transition-all"
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-zinc-100 hover:bg-zinc-200 text-zinc-700 active:scale-95 transition-all"
               >
                 关闭
               </button>

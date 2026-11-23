@@ -50,6 +50,10 @@ class Document(Base):
         "Conversation", back_populates="document",
         cascade="all, delete-orphan", passive_deletes=True
     )
+    annotations = relationship(
+        "Annotation", back_populates="document",
+        cascade="all, delete-orphan", passive_deletes=True
+    )
 
 
 class DocumentChunk(Base):
@@ -140,3 +144,21 @@ class AppSetting(Base):
     value = Column(Text, nullable=False)
     is_encrypted = Column(Boolean, default=False)
     updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+
+class Annotation(Base):
+    __tablename__ = "annotations"
+
+    id = Column(String, primary_key=True, default=_uuid)
+    document_id = Column(
+        String, ForeignKey("documents.id", ondelete="CASCADE"), nullable=False
+    )
+    page_index = Column(Integer, nullable=False, default=0)
+    selected_text = Column(Text, nullable=False)
+    color = Column(String, default="yellow")   # yellow | green | purple | blue
+    note = Column(Text, nullable=True)         # 个人思考与批注
+    ai_insight = Column(Text, nullable=True)    # 关联的 AI 解读/翻译
+    created_at = Column(DateTime, default=_now)
+    updated_at = Column(DateTime, default=_now, onupdate=_now)
+
+    document = relationship("Document", back_populates="annotations")
