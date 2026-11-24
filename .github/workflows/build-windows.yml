@@ -1,0 +1,61 @@
+name: Build Windows Release
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置 Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: 'apps/desktop/package-lock.json'
+
+      - name: 设置 Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: 安装前端依赖并编译
+        run: |
+          cd apps/desktop
+          npm ci
+          npm run build
+
+      - name: 编译 Python 独立脱机后端 (PyInstaller)
+        run: |
+          cd backend
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+          pyinstaller zhiyue_backend.spec --clean --noconfirm
+
+      - name: 同步 Windows 后端产物至 Electron
+        run: |
+          if (Test-Path "apps/desktop/resources/backend_dist") { Remove-Item -Recurse -Force "apps/desktop/resources/backend_dist" }
+          New-Item -ItemType Directory -Force -Path "apps/desktop/resources"
+          Copy-Item -Recurse -Force "backend/dist/zhiyue-backend" "apps/desktop/resources/backend_dist"
+
+      - name: 构建 Windows NSIS 安装包与便携包
+        run: |
+          cd apps/desktop
+          npx electron-builder --win --x64
+
+      - name: 上传构建产物 (Windows Setup & Portable)
+        uses: actions/upload-artifact@v4
+        with:
+          name: zhiyue-ai-windows-x64
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
+          retention-days: 14
