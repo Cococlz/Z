@@ -26,15 +26,19 @@ const isDev = !app.isPackaged
 const VITE_DEV_SERVER_URL = process.env['VITE_DEV_SERVER_URL']
 
 function getPythonPath(): string {
+  const isWin = process.platform === 'win32'
   if (isDev) {
-    const venvPython = path.resolve(__dirname, '../../../backend/.venv/bin/python')
+    const venvPython = isWin
+      ? path.resolve(__dirname, '../../../backend/.venv/Scripts/python.exe')
+      : path.resolve(__dirname, '../../../backend/.venv/bin/python')
     if (fs.existsSync(venvPython)) {
       return venvPython
     }
-    return 'python3'
+    return isWin ? 'python.exe' : 'python3'
   }
   // In production, packaged standalone binary
-  return path.join(process.resourcesPath, 'backend_dist', 'zhiyue-backend')
+  const binaryName = isWin ? 'zhiyue-backend.exe' : 'zhiyue-backend'
+  return path.join(process.resourcesPath, 'backend_dist', binaryName)
 }
 
 function startBackendService(): Promise<void> {
@@ -54,6 +58,7 @@ function startBackendService(): Promise<void> {
 
     pyProcess = spawn(pythonPath, args, {
       cwd: backendCwd,
+      windowsHide: true,
       env: {
         ...process.env,
         PYTHONUNBUFFERED: '1',
@@ -116,7 +121,11 @@ function stopBackendService() {
   if (pyProcess) {
     console.log('[Electron] Terminating Python Backend process...')
     try {
-      pyProcess.kill('SIGTERM')
+      if (process.platform === 'win32' && pyProcess.pid) {
+        spawn('taskkill', ['/pid', pyProcess.pid.toString(), '/T', '/F'])
+      } else {
+        pyProcess.kill('SIGTERM')
+      }
     } catch (e) {
       console.error('[Electron] Error killing Python process:', e)
     }
@@ -249,6 +258,7 @@ function setupAppMenu() {
 }
 
 function createWindow() {
+  const isMac = process.platform === 'darwin'
   const savedBounds = getSavedBounds()
   win = new BrowserWindow({
     title: '智阅 AI',
@@ -258,8 +268,16 @@ function createWindow() {
     y: savedBounds.y,
     minWidth: 960,
     minHeight: 640,
-    titleBarStyle: 'hiddenInset',
-    trafficLightPosition: { x: 18, y: 18 },
+    titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
+    ...(isMac
+      ? { trafficLightPosition: { x: 18, y: 18 } }
+      : {
+          titleBarOverlay: {
+            color: '#1C1C1E',
+            symbolColor: '#A1A1AA',
+            height: 36,
+          },
+        }),
     backgroundColor: '#1C1C1E',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),

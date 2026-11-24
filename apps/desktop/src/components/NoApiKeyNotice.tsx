@@ -38,6 +38,9 @@ export const NoApiKeyNotice: React.FC<NoApiKeyNoticeProps> = ({
     }
   }
 
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent || '')
+  const modKeyLabel = isMac ? '⌘K' : 'Ctrl+K'
+
   if (compact) {
     return (
       <div className="bg-gradient-to-br from-purple-50/90 via-white to-indigo-50/80 border border-purple-200/70 rounded-2xl p-3.5 space-y-2.5 text-xs text-zinc-700 shadow-sm animate-fade-in select-none">
@@ -46,7 +49,7 @@ export const NoApiKeyNotice: React.FC<NoApiKeyNoticeProps> = ({
           <span>尚未配置 AI 文本生成引擎</span>
         </div>
         <p className="text-[11px] leading-relaxed text-zinc-500">
-          双视图精读与 ⌘K 搜索完全本地可用。{contextDesc}，请选择：
+          双视图精读与 {modKeyLabel} 搜索完全本地可用。{contextDesc}，请选择：
         </p>
 
         {switchError && (
@@ -96,7 +99,7 @@ export const NoApiKeyNotice: React.FC<NoApiKeyNoticeProps> = ({
             尚未配置 AI 文本生成引擎
           </h4>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            智阅 AI 采用 Local-First 架构，文档解析、双视图精读与 ⌘K 混合检索已 <span className="font-semibold text-emerald-600">100% 本地离线就绪</span>。
+            智阅 AI 采用 Local-First 架构，文档解析、双视图精读与 {modKeyLabel} 混合检索已 <span className="font-semibold text-emerald-600">100% 本地离线就绪</span>。
           </p>
         </div>
       </div>

@@ -85,6 +85,9 @@ export default function App() {
   const [backendUrl, setBackendUrl] = useState<string | null>(initialUrl)
   const [backendReady, setBackendReady] = useState<boolean>(Boolean(initialUrl))
 
+  const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPod|iPad/i.test(navigator.userAgent || '')
+  const modKeyLabel = isMac ? '⌘K' : 'Ctrl+K'
+
   // 监听全局 ⌘K / Ctrl+K 快捷键唤起聚焦搜索
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -191,14 +194,14 @@ export default function App() {
           <button
             onClick={() => setSpotlightOpen(true)}
             className={`w-full flex items-center justify-between px-3 py-2 rounded-2xl text-xs font-medium transition-all group active:scale-[0.98] border border-transparent ${appStyles.spotlightBtn}`}
-            title="按下 ⌘K 随时唤起全局聚焦搜索"
+            title={`按下 ${modKeyLabel} 随时唤起全局聚焦搜索`}
           >
             <div className="flex items-center space-x-2 truncate">
               <Search className="w-3.5 h-3.5 opacity-60 group-hover:opacity-100 transition-opacity" />
               <span>聚焦搜索...</span>
             </div>
             <kbd className={`px-1.5 py-0.5 border rounded-md text-[10px] font-mono font-semibold shadow-2xs ${appStyles.spotlightKbd}`}>
-              ⌘K
+              {modKeyLabel}
             </kbd>
           </button>
 

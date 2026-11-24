@@ -20,8 +20,9 @@ def start_watchdog(parent_pid: int | None, interval_seconds: float = 2.0) -> Non
                 if not psutil.pid_exists(parent_pid):
                     os._exit(0)
                 proc = psutil.Process(parent_pid)
-                if proc.status() == psutil.STATUS_ZOMBIE:
-                    os._exit(0)
+                if sys.platform != "win32" and hasattr(psutil, "STATUS_ZOMBIE"):
+                    if proc.status() == psutil.STATUS_ZOMBIE:
+                        os._exit(0)
             except (psutil.NoSuchProcess, psutil.AccessDenied):
                 os._exit(0)
             except Exception:

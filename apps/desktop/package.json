@@ -8,7 +8,9 @@
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
-    "package": "npm run build && electron-builder --mac --arm64"
+    "package": "npm run build && electron-builder --mac --arm64",
+    "package:mac": "npm run build && electron-builder --mac --arm64",
+    "package:win": "npm run build && electron-builder --win --x64"
   },
   "build": {
     "appId": "com.zhiyue.ai",
@@ -20,6 +22,19 @@
       ],
       "category": "public.app-category.productivity",
       "identity": null
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "智阅 AI",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true
     },
     "dmg": {
       "contents": [
