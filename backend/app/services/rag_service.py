@@ -30,13 +30,30 @@ def _get_embed_model():
     global _embed_model
     if _embed_model is None:
         import os
+        import sys
         from pathlib import Path
         from fastembed import TextEmbedding  # type: ignore
 
         # 优先读取预置模型路径，实现 100% 离线脱网运行
-        backend_dir = Path(__file__).resolve().parent.parent.parent
-        bundled_cache = backend_dir / "bundled_models" / "fastembed_cache"
-        cache_dir = str(bundled_cache) if bundled_cache.exists() else None
+        bundled_cache = None
+        if getattr(sys, "frozen", False):
+            exe_dir = Path(sys.executable).resolve().parent
+            candidates = [
+                exe_dir / "bundled_models" / "fastembed_cache",
+                exe_dir / "_internal" / "bundled_models" / "fastembed_cache",
+                Path(getattr(sys, "_MEIPASS", exe_dir)) / "bundled_models" / "fastembed_cache",
+            ]
+            for c in candidates:
+                if c.exists():
+                    bundled_cache = c
+                    break
+        else:
+            backend_dir = Path(__file__).resolve().parent.parent.parent
+            cand = backend_dir / "bundled_models" / "fastembed_cache"
+            if cand.exists():
+                bundled_cache = cand
+
+        cache_dir = str(bundled_cache) if bundled_cache and bundled_cache.exists() else None
 
         logger.info("Loading FastEmbed model: BAAI/bge-small-zh-v1.5 (cache_dir=%s)", cache_dir)
         _embed_model = TextEmbedding("BAAI/bge-small-zh-v1.5", cache_dir=cache_dir)
