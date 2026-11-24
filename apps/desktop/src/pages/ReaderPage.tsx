@@ -31,6 +31,60 @@ type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes'
 type ReadViewMode = 'extracted' | 'native'
 export type HighlightColor = 'yellow' | 'green' | 'purple' | 'blue'
 
+export interface HighlightSemanticsMeta {
+  label: string
+  emoji: string
+  desc: string
+  chip: string
+  border: string
+  bgTint: string
+  ring: string
+  dot: string
+}
+
+export const HIGHLIGHT_SEMANTICS: Record<HighlightColor, HighlightSemanticsMeta> = {
+  yellow: {
+    label: '重点',
+    emoji: '🟡',
+    desc: '核心考点 / 关键定义',
+    chip: 'bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/50',
+    border: 'border-l-4 border-amber-400 dark:border-amber-500',
+    bgTint: 'bg-amber-500/[0.04] dark:bg-amber-400/[0.04]',
+    ring: 'ring-amber-400/80',
+    dot: 'bg-amber-400',
+  },
+  green: {
+    label: '理解',
+    emoji: '🟢',
+    desc: '原理解析 / 要点拆解',
+    chip: 'bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800/50',
+    border: 'border-l-4 border-emerald-400 dark:border-emerald-500',
+    bgTint: 'bg-emerald-500/[0.04] dark:bg-emerald-400/[0.04]',
+    ring: 'ring-emerald-400/80',
+    dot: 'bg-emerald-400',
+  },
+  purple: {
+    label: '思考',
+    emoji: '🟣',
+    desc: '个人见解 / 拓展联想',
+    chip: 'bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800/50',
+    border: 'border-l-4 border-purple-400 dark:border-purple-500',
+    bgTint: 'bg-purple-500/[0.04] dark:bg-purple-400/[0.04]',
+    ring: 'ring-purple-400/80',
+    dot: 'bg-purple-400',
+  },
+  blue: {
+    label: '疑问',
+    emoji: '🔵',
+    desc: '认知困惑 / 待解疑难',
+    chip: 'bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800/50',
+    border: 'border-l-4 border-blue-400 dark:border-blue-500',
+    bgTint: 'bg-blue-500/[0.04] dark:bg-blue-400/[0.04]',
+    ring: 'ring-blue-400/80',
+    dot: 'bg-blue-400',
+  },
+}
+
 export type ReaderTheme = 'white' | 'sepia' | 'dark'
 export type ReaderFontSize = 'sm' | 'base' | 'lg' | 'xl'
 export type ReaderLineHeight = 'normal' | 'relaxed' | 'loose'
@@ -276,6 +330,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [savedAiToNote, setSavedAiToNote] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
+  // 四色分类过滤与划线平滑滚动脉冲聚焦
+  const [noteFilterColor, setNoteFilterColor] = useState<HighlightColor | 'all'>('all')
+  const [pulsingAnnoId, setPulsingAnnoId] = useState<string | null>(null)
+
+  // AI 深度串联解读全景报告状态
+  const [synthesizing, setSynthesizing] = useState(false)
+  const [synthesisContent, setSynthesisContent] = useState<string | null>(null)
+  const [synthesisModalOpen, setSynthesisModalOpen] = useState(false)
+  const [synthesisError, setSynthesisError] = useState<string | null>(null)
+  const [copiedSynthesis, setCopiedSynthesis] = useState(false)
+
   const showToast = (msg: string) => {
     setToastMsg(msg)
     setTimeout(() => setToastMsg(null), 2800)
@@ -357,6 +422,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       console.warn('加载批注失败', e)
     }
   }
+
+  // 计算四色标注数量统计与分类过滤
+  const yellowCount = useMemo(() => annotations.filter((a) => a.color === 'yellow').length, [annotations])
+  const greenCount = useMemo(() => annotations.filter((a) => a.color === 'green').length, [annotations])
+  const purpleCount = useMemo(() => annotations.filter((a) => a.color === 'purple').length, [annotations])
+  const blueCount = useMemo(() => annotations.filter((a) => a.color === 'blue').length, [annotations])
+
+  const filteredAnnotations = useMemo(() => {
+    if (noteFilterColor === 'all') return annotations
+    return annotations.filter((a) => a.color === noteFilterColor)
+  }, [annotations, noteFilterColor])
 
   useEffect(() => {
     if (selectedDocId) {
@@ -748,7 +824,113 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }
 
-  // 6. 渲染正文划线高亮与跳转闪烁
+  // 6. 正文划线精准定位跳转与脉冲高亮动画
+  const handleJumpToAnnotation = (a: AnnotationItem) => {
+    if (a.page_index !== currentPageIdx) {
+      setCurrentPageIdx(a.page_index)
+    }
+    setPulsingAnnoId(a.id)
+    setTimeout(() => {
+      const el = document.getElementById(`zhiyue-anno-${a.id}`)
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      }
+    }, 120)
+    setTimeout(() => {
+      setPulsingAnnoId(null)
+    }, 2200)
+    const meta = HIGHLIGHT_SEMANTICS[a.color] || HIGHLIGHT_SEMANTICS.yellow
+    showToast(`🎯 已定位至第 ${a.page_index + 1} 页「${meta.label}」划线处`)
+  }
+
+  // 7. 发起 AI 划线深度串联与攻坚解读报告
+  const handleSynthesizeNotes = async () => {
+    if (annotations.length === 0) {
+      showToast('该文档暂无划线，请在正文中划选重点或疑问后再串联')
+      return
+    }
+    setSynthesisModalOpen(true)
+    setSynthesizing(true)
+    setSynthesisContent('')
+    setSynthesisError(null)
+
+    try {
+      const res = await fetch(`${backendUrl}/api/v1/reader/${selectedDocId}/synthesize-notes/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      })
+
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => null)
+        throw new Error(errJson?.detail || '无法生成划线串联报告')
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) throw new Error('流式读取不可用')
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let full = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n\n')
+        buffer = lines.pop() || ''
+
+        for (const line of lines) {
+          if (!line.trim()) continue
+          const eventMatch = line.match(/^event:\s*(\w+)/)
+          const dataMatch = line.match(/^data:\s*(.*)$/m)
+          const event = eventMatch ? eventMatch[1] : 'token'
+          const rawData = dataMatch ? dataMatch[1] : ''
+
+          if (event === 'token') {
+            try {
+              const token = JSON.parse(rawData)
+              full += token
+              setSynthesisContent(full)
+            } catch {
+              full += rawData
+              setSynthesisContent(full)
+            }
+          } else if (event === 'error') {
+            try {
+              const err = JSON.parse(rawData)
+              setSynthesisError(err)
+            } catch {
+              setSynthesisError(rawData)
+            }
+          } else if (event === 'done') {
+            setSynthesizing(false)
+          }
+        }
+      }
+    } catch (err: any) {
+      console.error('AI 划线串联解读失败', err)
+      setSynthesisError(err.message || '生成失败，请检查模型配置')
+    } finally {
+      setSynthesizing(false)
+    }
+  }
+
+  // 8. 导出 AI 深度串联解读报告
+  const handleExportSynthesis = () => {
+    if (!synthesisContent) return
+    const currentDocName = docContent?.name || '读书笔记串联报告'
+    const blob = new Blob([synthesisContent], { type: 'text/markdown;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `${currentDocName}_AI深度串联解读.md`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(url)
+    showToast('已导出 AI 深度串联解读报告 (.md)')
+  }
+
+  // 9. 渲染正文划线高亮与跳转闪烁
   const renderArticleText = (content: string) => {
     const pageAnnotations = annotations.filter((a) => a.page_index === currentPageIdx)
     if (pageAnnotations.length === 0 && !targetHighlightText) {
@@ -791,23 +973,31 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         }
 
         if (matched.anno) {
+          const meta = HIGHLIGHT_SEMANTICS[matched.anno.color] || HIGHLIGHT_SEMANTICS.yellow
+          const isPulsing = pulsingAnnoId === matched.anno.id
+
           const colorCls = {
-            yellow: 'bg-amber-200/80 border-b-2 border-amber-400 hover:bg-amber-300',
-            green: 'bg-emerald-200/80 border-b-2 border-emerald-400 hover:bg-emerald-300',
-            purple: 'bg-purple-200/80 border-b-2 border-purple-400 hover:bg-purple-300',
-            blue: 'bg-blue-200/80 border-b-2 border-blue-400 hover:bg-blue-300',
+            yellow: 'bg-amber-200/80 border-b-2 border-amber-400 hover:bg-amber-300 dark:bg-amber-400/25 dark:text-amber-100 dark:border-amber-400',
+            green: 'bg-emerald-200/80 border-b-2 border-emerald-400 hover:bg-emerald-300 dark:bg-emerald-400/25 dark:text-emerald-100 dark:border-emerald-400',
+            purple: 'bg-purple-200/80 border-b-2 border-purple-400 hover:bg-purple-300 dark:bg-purple-400/25 dark:text-purple-100 dark:border-purple-400',
+            blue: 'bg-blue-200/80 border-b-2 border-blue-400 hover:bg-blue-300 dark:bg-blue-400/25 dark:text-blue-100 dark:border-blue-400',
           }[matched.anno.color] || 'bg-amber-200/80 border-b-2 border-amber-400'
 
           return (
             <mark
               key={`anno_${matched.anno.id}_${idx}`}
+              id={`zhiyue-anno-${matched.anno.id}`}
               onClick={(e) => {
                 e.stopPropagation()
                 setActiveAnnotation(matched.anno || null)
                 setEditingNoteText(matched.anno?.note || '')
               }}
-              className={`${colorCls} text-zinc-900 px-0.5 rounded-xs font-normal cursor-pointer transition-colors selection:bg-purple-300`}
-              title={matched.anno.note ? `✍️ 批注: ${matched.anno.note}` : '点击查看/编辑此划线'}
+              className={`${colorCls} text-zinc-900 px-0.5 rounded-xs font-normal cursor-pointer transition-all duration-300 selection:bg-purple-300 ${
+                isPulsing
+                  ? `ring-4 ${meta.ring} ring-offset-2 ring-offset-black shadow-2xl scale-[1.03] animate-pulse inline-block z-10 font-medium`
+                  : ''
+              }`}
+              title={matched.anno.note ? `✍️ [${meta.label}] 批注: ${matched.anno.note}` : `[${meta.label}] 点击查看/编辑此划线`}
             >
               {part}
             </mark>
@@ -917,7 +1107,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
 
     return (
-      <div className="space-y-4">
+      <div className="space-y-4 min-w-0">
         {blocks.map((block, bIdx) => {
           if (block.type === 'task') {
             const raw = block.lines[0]
@@ -976,7 +1166,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 <span className={`w-5 h-5 rounded-lg text-[11px] font-mono font-bold flex items-center justify-center shrink-0 mt-0.5 ${themeStyles.listBadge}`}>
                   {block.meta}
                 </span>
-                <div className="flex-1 select-text">
+                <div className="flex-1 min-w-0 select-text break-words">
                   {hasLead ? (
                     <>
                       <strong className={`font-bold mr-0.5 ${themeStyles.listLeadBold}`}>
@@ -997,7 +1187,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           }
 
           return (
-            <p key={`text-${bIdx}`} className="leading-relaxed select-text my-1.5">
+            <p key={`text-${bIdx}`} className="leading-relaxed select-text my-1.5 break-words">
               {renderArticleText(block.lines.join('\n'))}
             </p>
           )
@@ -2145,62 +2335,136 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           >
             {mode === 'notes' ? (
               <div className="h-full flex flex-col space-y-3">
-                <div className={`flex items-center justify-between pb-2 border-b ${themeStyles.asideDivider}`}>
-                  <span className={`text-xs font-bold ${themeStyles.asideTitle}`}>
-                    已收录 {annotations.length} 条划线与思考
-                  </span>
+                {/* 顶栏控制：划线统计、四色过滤条与 AI 串联解读入口 */}
+                <div className={`pb-3 border-b space-y-2.5 shrink-0 ${themeStyles.asideDivider}`}>
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center space-x-1.5">
+                      <span className={`text-xs font-bold ${themeStyles.asideTitle}`}>
+                        已收录 {annotations.length} 条划线
+                      </span>
+                      {annotations.length > 0 && (
+                        <span className="text-[10px] opacity-60 font-mono">
+                          (🟡{yellowCount} 🟢{greenCount} 🟣{purpleCount} 🔵{blueCount})
+                        </span>
+                      )}
+                    </div>
+
+                    {annotations.length > 0 && (
+                      <button
+                        onClick={handleSynthesizeNotes}
+                        disabled={synthesizing}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white shadow-xs shadow-purple-500/25 active:scale-95 transition-all flex items-center space-x-1"
+                        title="将全书的重点、理解、思考与疑问交由 AI 深度串联与攻坚答疑"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        <span>AI 深度串联</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* 四色语义化分段过滤控制器 */}
                   {annotations.length > 0 && (
-                    <span className={`text-[11px] opacity-70`}>
-                      点击笔记卡片可跳转至正文
-                    </span>
+                    <div className="flex items-center space-x-1 overflow-x-auto pb-0.5 text-[11px] font-medium">
+                      <button
+                        onClick={() => setNoteFilterColor('all')}
+                        className={`px-2.5 py-1 rounded-xl transition-all shrink-0 ${
+                          noteFilterColor === 'all'
+                            ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                            : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
+                        }`}
+                      >
+                        全部 ({annotations.length})
+                      </button>
+
+                      {(['yellow', 'green', 'purple', 'blue'] as HighlightColor[]).map((c) => {
+                        const meta = HIGHLIGHT_SEMANTICS[c]
+                        const count = annotations.filter((a) => a.color === c).length
+                        const active = noteFilterColor === c
+                        return (
+                          <button
+                            key={c}
+                            onClick={() => setNoteFilterColor(c)}
+                            className={`px-2 py-1 rounded-xl transition-all shrink-0 flex items-center space-x-1 ${
+                              active
+                                ? `${meta.chip} font-bold shadow-2xs ring-1 ring-current`
+                                : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
+                            }`}
+                            title={meta.desc}
+                          >
+                            <span>{meta.emoji}</span>
+                            <span>{meta.label}</span>
+                            <span className="opacity-70 font-mono text-[10px]">({count})</span>
+                          </button>
+                        )
+                      })}
+                    </div>
                   )}
                 </div>
 
-                {annotations.length === 0 ? (
-                  <div className={`h-full flex flex-col items-center justify-center text-center p-8 space-y-3 ${themeStyles.asideEmptyText}`}>
-                    <div className={`w-12 h-12 rounded-3xl ${themeStyles.asideEmptyIcon} flex items-center justify-center`}>
-                      <Bookmark className="w-6 h-6" />
+                {/* 列表渲染 */}
+                {filteredAnnotations.length === 0 ? (
+                  annotations.length === 0 ? (
+                    <div className={`h-full flex flex-col items-center justify-center text-center p-8 space-y-3 ${themeStyles.asideEmptyText}`}>
+                      <div className={`w-12 h-12 rounded-3xl ${themeStyles.asideEmptyIcon} flex items-center justify-center`}>
+                        <Bookmark className="w-6 h-6" />
+                      </div>
+                      <h3 className={`text-sm font-bold ${themeStyles.asideTitle}`}>暂无高亮划线</h3>
+                      <p className="text-xs max-w-[220px]">
+                        在正文中选中任意文字，点击 🟡重点、🟢理解、🟣思考、🔵疑问 即可划线；也可以在 AI 解读后点击「📌 存入笔记」。
+                      </p>
                     </div>
-                    <h3 className={`text-sm font-bold ${themeStyles.asideTitle}`}>暂无高亮划线</h3>
-                    <p className="text-xs max-w-[220px]">
-                      在正文中选中任意文字，点击颜色圆点即可划线；也可以在 AI 解读后点击「📌 存入笔记」。
-                    </p>
-                  </div>
+                  ) : (
+                    <div className={`h-48 flex flex-col items-center justify-center text-center p-6 space-y-2 ${themeStyles.asideEmptyText}`}>
+                      <div className="w-8 h-8 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center opacity-60">
+                        <Bookmark className="w-4 h-4" />
+                      </div>
+                      <p className="text-xs">该分类下暂无划线标注</p>
+                      <button
+                        onClick={() => setNoteFilterColor('all')}
+                        className="text-[11px] text-purple-600 dark:text-purple-400 underline font-medium"
+                      >
+                        查看全部划线
+                      </button>
+                    </div>
+                  )
                 ) : (
-                  <div className="space-y-3 overflow-y-auto pr-1">
-                    {annotations.map((a) => {
-                      const colorBadge = {
-                        yellow: 'bg-amber-100 text-amber-800 border-amber-300',
-                        green: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-                        purple: 'bg-purple-100 text-purple-800 border-purple-300',
-                        blue: 'bg-blue-100 text-blue-800 border-blue-300',
-                      }[a.color] || 'bg-amber-100 text-amber-800 border-amber-300'
+                  <div className="space-y-3 overflow-y-auto pr-1 flex-1">
+                    {filteredAnnotations.map((a) => {
+                      const meta = HIGHLIGHT_SEMANTICS[a.color] || HIGHLIGHT_SEMANTICS.yellow
 
                       return (
                         <div
                           key={a.id}
-                          className={`${themeStyles.asideNoteCard} rounded-2xl p-3 border space-y-2 transition-all group`}
+                          className={`${themeStyles.asideNoteCard} ${meta.border} ${meta.bgTint} rounded-2xl p-3 border space-y-2.5 transition-all group hover:shadow-xs`}
                         >
                           <div className="flex items-center justify-between">
                             <div className="flex items-center space-x-1.5">
-                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border ${colorBadge}`}>
-                                第 {a.page_index + 1} 页
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 ${meta.chip}`}>
+                                <span>{meta.emoji}</span>
+                                <span>{meta.label} · P.{a.page_index + 1}</span>
                               </span>
                               <span className="text-[10px] opacity-60 font-mono">
                                 {a.created_at ? new Date(a.created_at).toLocaleDateString() : ''}
                               </span>
                             </div>
 
-                            <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <div className="flex items-center space-x-1 opacity-80 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={() => handleJumpToAnnotation(a)}
+                                className="px-2 py-0.5 rounded-lg bg-black/10 dark:bg-white/10 hover:bg-black/20 dark:hover:bg-white/20 text-[11px] font-semibold text-current shadow-2xs active:scale-95 transition-all flex items-center space-x-0.5"
+                                title="平滑定位并闪烁高亮正文"
+                              >
+                                <span>🎯 定位</span>
+                              </button>
                               <button
                                 onClick={() => {
-                                  setCurrentPageIdx(a.page_index)
-                                  showToast(`已跳转到第 ${a.page_index + 1} 页`)
+                                  setActiveAnnotation(a)
+                                  setEditingNoteText(a.note || '')
                                 }}
-                                className="px-2 py-0.5 rounded-lg bg-black/10 hover:bg-black/20 text-[11px] font-medium text-current shadow-2xs"
-                                title="跳转到正文所在页"
+                                className="w-6 h-6 rounded-lg hover:bg-black/10 dark:hover:bg-white/10 flex items-center justify-center shadow-2xs transition-colors"
+                                title="编写/修改批注"
                               >
-                                定位
+                                <Type className="w-3 h-3 opacity-70 hover:opacity-100" />
                               </button>
                               <button
                                 onClick={(e) => handleDeleteAnnotation(a.id, e)}
@@ -2213,27 +2477,39 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           </div>
 
                           <div
-                            onClick={() => {
-                              setCurrentPageIdx(a.page_index)
-                              setActiveAnnotation(a)
-                              setEditingNoteText(a.note || '')
-                            }}
-                            className={`text-xs font-medium leading-relaxed border-l-2 border-purple-400 pl-2 cursor-pointer transition-colors ${themeStyles.asideNoteText}`}
+                            onClick={() => handleJumpToAnnotation(a)}
+                            className={`text-xs font-medium leading-relaxed pl-1 cursor-pointer transition-colors ${themeStyles.asideNoteText}`}
+                            title="点击可直接定位至正文"
                           >
                             “{a.selected_text}”
                           </div>
 
                           {a.note && (
-                            <div className={`text-[11px] rounded-xl p-2 border space-y-0.5 ${themeStyles.asideNoteInner}`}>
-                              <span className="font-bold text-amber-600">✍️ 批注：</span>
-                              <span>{a.note}</span>
+                            <div className={`text-[11px] rounded-xl p-2.5 border space-y-1 ${themeStyles.asideNoteInner}`}>
+                              <div className="flex items-center justify-between font-bold text-amber-600 dark:text-amber-400">
+                                <span className="flex items-center space-x-1">
+                                  <span>✍️ 我的思考与批注</span>
+                                </span>
+                                <button
+                                  onClick={() => {
+                                    setActiveAnnotation(a)
+                                    setEditingNoteText(a.note || '')
+                                  }}
+                                  className="text-[10px] opacity-70 hover:opacity-100 underline"
+                                >
+                                  修改
+                                </button>
+                              </div>
+                              <p className="leading-relaxed whitespace-pre-line">{a.note}</p>
                             </div>
                           )}
 
                           {a.ai_insight && (
-                            <div className="text-[11px] text-purple-700 bg-purple-500/10 rounded-xl p-2 border border-purple-500/20 space-y-0.5">
-                              <span className="font-bold">💡 AI 沉淀：</span>
-                              <p className="line-clamp-3">{a.ai_insight}</p>
+                            <div className="text-[11px] text-purple-700 dark:text-purple-300 bg-purple-500/10 dark:bg-purple-950/30 rounded-xl p-2.5 border border-purple-500/20 space-y-1">
+                              <span className="font-bold">💡 沉淀的 AI 深度解析：</span>
+                              <p className="line-clamp-4 leading-relaxed opacity-90 whitespace-pre-line">
+                                {a.ai_insight}
+                              </p>
                             </div>
                           )}
                         </div>
@@ -2280,6 +2556,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
               )
             ) : (
               <div className="select-text cursor-text">
+                {annotations.length > 0 && (
+                  <div
+                    onClick={() => setMode('notes')}
+                    className="mb-3.5 px-3 py-2 rounded-2xl bg-purple-500/[0.08] dark:bg-purple-950/30 border border-purple-500/20 flex items-center justify-between cursor-pointer hover:bg-purple-500/[0.12] transition-colors group select-none text-xs"
+                    title="点击前往读书笔记本，查看四色划线或一键 AI 串联解读"
+                  >
+                    <div className="flex items-center space-x-1.5 text-purple-700 dark:text-purple-300 font-medium">
+                      <Sparkles className="w-3.5 h-3.5 text-purple-500" />
+                      <span>已在本文档标记 {annotations.length} 处四色划线</span>
+                      <span className="text-[10px] opacity-70 font-mono">
+                        (🟡{yellowCount} 🟢{greenCount} 🟣{purpleCount} 🔵{blueCount})
+                      </span>
+                    </div>
+                    <span className="text-[11px] font-semibold text-purple-600 dark:text-purple-400 group-hover:translate-x-0.5 transition-transform flex items-center">
+                      <span>前往串联</span>
+                      <ChevronRight className="w-3 h-3 ml-0.5" />
+                    </span>
+                  </div>
+                )}
                 <CustomMarkdownRenderer content={summaries[mode]} themeStyles={themeStyles} />
                 {generating && (
                   <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
@@ -2305,22 +2600,22 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             <button
               onClick={() => handleCreateHighlight('yellow')}
               className="w-3.5 h-3.5 rounded-full bg-amber-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="黄色高亮划线"
+              title="🟡 标记重点 (核心考点 / 关键定义)"
             />
             <button
               onClick={() => handleCreateHighlight('green')}
               className="w-3.5 h-3.5 rounded-full bg-emerald-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="绿色高亮划线"
+              title="🟢 标记理解 (原理解析 / 要点拆解)"
             />
             <button
               onClick={() => handleCreateHighlight('purple')}
               className="w-3.5 h-3.5 rounded-full bg-purple-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="紫色高亮划线"
+              title="🟣 记录思考 (个人见解 / 拓展联想)"
             />
             <button
               onClick={() => handleCreateHighlight('blue')}
               className="w-3.5 h-3.5 rounded-full bg-blue-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="蓝色高亮划线"
+              title="🔵 记录疑问 (认知困惑 / 待解疑难)"
             />
           </div>
 
@@ -2610,6 +2905,118 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                 >
                   {savingNote ? <Loader2 className="w-3 h-3 animate-spin" /> : null}
                   <span>保存批注</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* AI 深度串联解读全屏弹窗 */}
+      {synthesisModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-md animate-fade-in select-none">
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl bg-white dark:bg-[#1C1C1E] rounded-3xl shadow-2xl border border-black/[0.08] dark:border-white/[0.12] overflow-hidden flex flex-col max-h-[82vh] animate-scale-in"
+          >
+            {/* 弹窗头部 */}
+            <div className="px-6 py-4 border-b border-zinc-100 dark:border-white/[0.08] flex items-center justify-between bg-zinc-50/50 dark:bg-white/[0.02]">
+              <div className="space-y-0.5">
+                <div className="flex items-center space-x-2">
+                  <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-2xs">
+                    <Sparkles className="w-3.5 h-3.5" />
+                  </div>
+                  <h3 className="text-sm font-bold text-zinc-900 dark:text-white">
+                    AI 划线深度串联与攻坚解读
+                  </h3>
+                </div>
+                <div className="flex items-center space-x-2 text-[11px] text-zinc-500 dark:text-zinc-400 font-mono">
+                  <span>《{docContent?.name || '当前文档'}》</span>
+                  <span>·</span>
+                  <span>共串联 {annotations.length} 处四色划线 (🟡{yellowCount} 🟢{greenCount} 🟣{purpleCount} 🔵{blueCount})</span>
+                </div>
+              </div>
+
+              <button
+                onClick={() => setSynthesisModalOpen(false)}
+                className="w-7 h-7 rounded-full bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 flex items-center justify-center text-zinc-500 dark:text-zinc-400 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* 弹窗内容展示区 */}
+            <div className="flex-1 overflow-y-auto p-6 space-y-4 select-text cursor-text text-sm leading-relaxed text-zinc-800 dark:text-zinc-200">
+              {synthesisError ? (
+                <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/40 text-xs text-rose-600 dark:text-rose-400 space-y-2">
+                  <div className="font-bold">生成异常</div>
+                  <p>{synthesisError}</p>
+                  <button
+                    onClick={handleSynthesizeNotes}
+                    className="px-3 py-1 bg-rose-600 text-white rounded-lg font-semibold active:scale-95 transition-all"
+                  >
+                    重新发起串联
+                  </button>
+                </div>
+              ) : !synthesisContent && synthesizing ? (
+                <div className="h-64 flex flex-col items-center justify-center space-y-3 text-zinc-400">
+                  <div className="w-12 h-12 rounded-3xl bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400 animate-pulse">
+                    <Sparkles className="w-6 h-6" />
+                  </div>
+                  <span className="text-xs font-semibold">
+                    正在深度串联 🟡重点、🟢理解、🟣思考、🔵疑问 形成全景知识网...
+                  </span>
+                </div>
+              ) : (
+                <div>
+                  <CustomMarkdownRenderer content={synthesisContent || ''} themeStyles={themeStyles} />
+                  {synthesizing && (
+                    <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* 弹窗底部操作条 */}
+            <div className="px-6 py-3 border-t border-zinc-100 dark:border-white/[0.08] flex items-center justify-between bg-zinc-50/50 dark:bg-white/[0.02] text-xs">
+              <div className="flex items-center space-x-1.5">
+                <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-black/5 dark:bg-white/10 text-zinc-600 dark:text-zinc-400">
+                  Local-First AI 知识合成
+                </span>
+              </div>
+
+              <div className="flex items-center space-x-2">
+                {synthesisContent && (
+                  <>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(synthesisContent)
+                        setCopiedSynthesis(true)
+                        setTimeout(() => setCopiedSynthesis(false), 2000)
+                      }}
+                      className="px-3 py-1.5 rounded-xl bg-black/5 dark:bg-white/10 hover:bg-black/10 dark:hover:bg-white/15 text-zinc-700 dark:text-zinc-200 font-semibold active:scale-95 transition-all flex items-center space-x-1 shadow-2xs"
+                    >
+                      {copiedSynthesis ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
+                      <span>{copiedSynthesis ? '已复制' : '复制全文'}</span>
+                    </button>
+
+                    <button
+                      onClick={handleExportSynthesis}
+                      className="px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-semibold active:scale-95 transition-all flex items-center space-x-1 shadow-xs"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>导出 Markdown</span>
+                    </button>
+                  </>
+                )}
+
+                <button
+                  onClick={handleSynthesizeNotes}
+                  disabled={synthesizing}
+                  className="px-3 py-1.5 rounded-xl border border-zinc-200 dark:border-white/10 hover:bg-black/5 dark:hover:bg-white/5 text-zinc-600 dark:text-zinc-300 font-medium active:scale-95 transition-all flex items-center space-x-1 disabled:opacity-50"
+                >
+                  <RefreshCw className={`w-3.5 h-3.5 ${synthesizing ? 'animate-spin' : ''}`} />
+                  <span>重新解读</span>
                 </button>
               </div>
             </div>

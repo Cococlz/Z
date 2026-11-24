@@ -411,3 +411,100 @@ def export_annotations_markdown(doc_id: str, db: Session = Depends(get_db)):
         "total_count": len(notes),
         "markdown": md_content,
     }
+
+
+@router.post("/{doc_id}/synthesize-notes/stream")
+async def synthesize_notes_stream(doc_id: str, db: Session = Depends(get_db)):
+    """
+    AI 伴读与四色划线深度联动：
+    对用户在阅读该文档时做出的黄色(重点)、绿色(理解)、紫色(思考)、蓝色(疑问)进行深度串联与定制攻坚解读。
+    """
+    from app.services.llm_service import get_provider
+
+    doc = db.query(Document).filter(Document.id == doc_id).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="文档未找到")
+
+    notes = (
+        db.query(Annotation)
+        .filter(Annotation.document_id == doc_id)
+        .order_by(Annotation.page_index.asc(), Annotation.created_at.asc())
+        .all()
+    )
+
+    if not notes:
+        raise HTTPException(
+            status_code=400,
+            detail="该文档暂无划线与批注笔记，请先划选文字后再进行 AI 串联解读。",
+        )
+
+    # 结构化组织用户的四色划线
+    yellow_notes = [a for a in notes if a.color == "yellow"]
+    green_notes = [a for a in notes if a.color == "green"]
+    purple_notes = [a for a in notes if a.color == "purple"]
+    blue_notes = [a for a in notes if a.color == "blue"]
+
+    def _format_group(title: str, items: list[Annotation]) -> str:
+        if not items:
+            return f"### {title} (0 处)\n（暂无标注）\n"
+        out = [f"### {title} (共 {len(items)} 处)"]
+        for idx, a in enumerate(items, 1):
+            line = f"{idx}. [第 {a.page_index + 1} 页] 原文：「{a.selected_text}」"
+            if a.note:
+                line += f"\n   ✍️ 个人思考/批注：{a.note}"
+            if a.ai_insight:
+                line += f"\n   💡 先前 AI 解析：{a.ai_insight.strip()}"
+            out.append(line)
+        return "\n".join(out) + "\n"
+
+    sections = [
+        _format_group("🟡 核心重点 (Key Concepts)", yellow_notes),
+        _format_group("🟢 认知理解 (Comprehension)", green_notes),
+        _format_group("🟣 个人思考与反思 (Reflections)", purple_notes),
+        _format_group("🔵 疑难困惑与待解问题 (Doubts & Questions)", blue_notes),
+    ]
+    notes_payload = "\n".join(sections)
+
+    sys_instruction = (
+        "你是一位博学的学术伴读导师与认知科学专家。用户在研读文档时，通过智阅 AI 的「四色高亮笔记系统」"
+        "细致记录了不同维度的划线与思考（🟡重点、🟢理解、🟣思考、🔵疑问）。\n"
+        "请结合文档背景，对用户的划线资产进行一次结构化、有深度、直击痛点的【全篇划线串联攻坚解读】。\n\n"
+        "【报告输出规范】：\n"
+        "1. **🧭 知识脉络全景串联**：将分散在不同页面的【重点 🟡】与【理解 🟢】融会贯通，梳理成连贯的知识演进逻辑线；\n"
+        "2. **🎯 核心疑难攻坚破局**：重点针对用户标记的【疑问 🔵】，深入浅出地剖析原理，消除认知盲区；如无疑问标注，则指出该领域最容易踩坑的隐形陷阱；\n"
+        "3. **💡 思想共鸣与实践进阶**：点评用户的【思考 🟣】，并给出在实际项目或深度学习中的延伸应用建议；\n"
+        "4. **排版质感**：采用清晰的 Markdown 结构，标题分明，关键要点与代码使用粗体或代码块高亮，语言充满启发性与导师亲和力。"
+    )
+
+    user_prompt = (
+        f"文档名称：《{doc.name}》\n"
+        f"用户累计划线批注：{len(notes)} 条\n\n"
+        f"以下是用户在阅读过程中留下的全部高亮划线与思考笔记：\n\n"
+        f"{notes_payload}\n\n"
+        "请立即为我生成本篇文档的【全篇划线深度串联与攻坚解读报告】："
+    )
+
+    messages = [
+        {"role": "system", "content": sys_instruction},
+        {"role": "user", "content": user_prompt},
+    ]
+
+    async def _generator():
+        try:
+            provider = get_provider()
+            async for token in provider.chat_stream(messages, temperature=0.3):
+                yield f"event: token\ndata: {json.dumps(token, ensure_ascii=False)}\n\n"
+            yield f"event: done\ndata: \"\"\n\n"
+        except Exception as e:
+            logger.exception("Synthesize notes stream error")
+            yield f"event: error\ndata: {json.dumps(str(e), ensure_ascii=False)}\n\n"
+
+    return StreamingResponse(
+        _generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "X-Accel-Buffering": "no",
+        },
+    )
+

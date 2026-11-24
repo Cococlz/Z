@@ -446,7 +446,7 @@ export const ConvertPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pro
             <button
               onClick={handleStartConvert}
               disabled={converting || (sourceMode === 'upload' && !uploadedFile)}
-              className="px-4 py-2 rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 active:scale-95 text-white transition-all shadow-sm hover:shadow-amber-500/20 flex items-center space-x-1.5 disabled:opacity-40 disabled:pointer-events-none shrink-0"
+              className="px-4 py-2 rounded-2xl text-xs font-bold bg-amber-500 hover:bg-amber-600 dark:bg-amber-600/90 dark:hover:bg-amber-500 text-white active:scale-95 transition-all shadow-xs dark:shadow-none flex items-center space-x-1.5 disabled:opacity-40 disabled:pointer-events-none shrink-0"
             >
               {converting ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Shuffle className="w-3.5 h-3.5" />}
               <span>{converting ? '正在转换...' : '一键转换'}</span>
