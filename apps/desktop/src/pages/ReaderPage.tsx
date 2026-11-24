@@ -24,11 +24,13 @@ import {
   Type,
   Search,
   Tag,
+  MessageSquare,
+  Send,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
 
-type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes'
+type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes' | 'chat'
 type ReadViewMode = 'extracted' | 'native'
 export type HighlightColor = 'yellow' | 'green' | 'purple' | 'blue'
 
@@ -175,7 +177,8 @@ const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'overall', label: '全局摘要', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
   { id: 'outline', label: '思维大纲', icon: <ListTree className="w-3.5 h-3.5" /> },
   { id: 'keypoints', label: '核心要点', icon: <Lightbulb className="w-3.5 h-3.5" /> },
-  { id: 'notes', label: '划线笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
+  { id: 'notes', label: '笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
+  { id: 'chat', label: '即时追问', icon: <MessageSquare className="w-3.5 h-3.5" /> },
 ]
 
 // 智能增强型 Markdown 渲染引擎：解决原生 prose 样式缺失导致的大纲平铺无层级与重点淹没问题，并深度支持全景划线高亮
@@ -565,6 +568,145 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [summaries, setSummaries] = useState<Record<string, string>>({})
   const [generating, setGenerating] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
+
+  // 伴读即时追问状态与多轮记忆
+  interface CompanionChatMessage {
+    id: string
+    role: 'user' | 'assistant'
+    content: string
+    isStreaming?: boolean
+  }
+
+  const [companionMessages, setCompanionMessages] = useState<CompanionChatMessage[]>([
+    {
+      id: 'init',
+      role: 'assistant',
+      content: '你好！我是您的**专属伴读 AI 助手**。\n\n针对当前正在阅读的文档，您有任何疑问、想深入探究原理或查看实际代码实现，欢迎在此随时向我追问。',
+    },
+  ])
+  const [companionInput, setCompanionInput] = useState('')
+  const [companionGenerating, setCompanionGenerating] = useState(false)
+  const [companionConvId, setCompanionConvId] = useState<string | null>(null)
+  const [savedCompanionNoteIds, setSavedCompanionNoteIds] = useState<Set<string>>(new Set())
+  const companionEndRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (mode === 'chat') {
+      companionEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+  }, [companionMessages, mode])
+
+  const handleSendCompanionChat = async (presetText?: string) => {
+    const text = (presetText || companionInput).trim()
+    if (!text || companionGenerating || !selectedDocId || !backendUrl) return
+    if (!presetText) setCompanionInput('')
+
+    const userMsgId = 'user_' + Date.now()
+    const assistantMsgId = 'asst_' + Date.now()
+
+    setCompanionMessages((prev) => [
+      ...prev,
+      { id: userMsgId, role: 'user', content: text },
+      { id: assistantMsgId, role: 'assistant', content: '', isStreaming: true },
+    ])
+    setCompanionGenerating(true)
+    setMode('chat')
+    setShowAiCompanion(true)
+
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/chat/stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question: text,
+          doc_id: selectedDocId,
+          conversation_id: companionConvId,
+        }),
+      })
+
+      if (!resp.ok) throw new Error('网络请求异常')
+      const reader = resp.body?.getReader()
+      if (!reader) throw new Error('流式读取器不可用')
+
+      const decoder = new TextDecoder()
+      let buffer = ''
+      let fullContent = ''
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split('\n')
+        buffer = lines.pop() || ''
+
+        let currentEvent = ''
+        for (const line of lines) {
+          if (line.startsWith('event: ')) {
+            currentEvent = line.slice(7).trim()
+          } else if (line.startsWith('data: ')) {
+            const rawData = line.slice(6).trim()
+            if (!rawData) continue
+            try {
+              const data = JSON.parse(rawData)
+              if (currentEvent === 'token') {
+                fullContent += data
+                setCompanionMessages((prev) =>
+                  prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent } : m))
+                )
+              } else if (currentEvent === 'done') {
+                if (data && data.conversation_id) {
+                  setCompanionConvId(data.conversation_id)
+                }
+              }
+            } catch {}
+          }
+        }
+      }
+    } catch (e) {
+      console.error('伴读追问异常', e)
+      setCompanionMessages((prev) =>
+        prev.map((m) =>
+          m.id === assistantMsgId
+            ? { ...m, content: '⚠️ 伴读生成遇到网络或模型错误，请确认已在设置中配置有效 API Key。' }
+            : m
+        )
+      )
+    } finally {
+      setCompanionGenerating(false)
+      setCompanionMessages((prev) =>
+        prev.map((m) => (m.id === assistantMsgId ? { ...m, isStreaming: false } : m))
+      )
+    }
+  }
+
+  const handleSaveCompanionNote = async (msg: CompanionChatMessage, idx: number) => {
+    if (!selectedDocId || !backendUrl) return
+    const prevUser = companionMessages[idx - 1]?.role === 'user' ? companionMessages[idx - 1].content : '伴读提问'
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: selectedDocId,
+          page_index: currentPageIdx,
+          selected_text: prevUser.slice(0, 100),
+          color: 'purple',
+          tags: ['伴读追问'],
+          ai_insight: msg.content,
+        }),
+      })
+      if (resp.ok) {
+        const data = await resp.json()
+        if (data.annotation) {
+          setAnnotations((prev) => [...prev, data.annotation])
+          setSavedCompanionNoteIds((prev) => new Set([...prev, msg.id]))
+          showToast('已将该追问洞察存入读书笔记')
+        }
+      }
+    } catch (e) {
+      console.error('保存笔记失败', e)
+    }
+  }
 
   // 划词悬浮菜单与结果弹窗状态
   const [tooltip, setTooltip] = useState<HighlightTooltipState>({
@@ -2415,6 +2557,24 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     <span>导出笔记</span>
                   </button>
                 )
+              ) : mode === 'chat' ? (
+                <button
+                  onClick={() => {
+                    setCompanionMessages([
+                      {
+                        id: 'init_' + Date.now(),
+                        role: 'assistant',
+                        content: '对话已重置。您可以随时针对当前文档继续深入追问。',
+                      },
+                    ])
+                    setCompanionConvId(null)
+                  }}
+                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all flex items-center space-x-1 opacity-70 hover:opacity-100"
+                  title="清空当前伴读对话历史"
+                >
+                  <RefreshCw className="w-3 h-3" />
+                  <span>新对话</span>
+                </button>
               ) : (
                 <button
                   onClick={() => handleGenerate(Boolean(summaries[mode]))}
@@ -2442,21 +2602,21 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </div>
 
             {/* iOS 分段控制器 */}
-            <div className={`grid grid-cols-4 ${themeStyles.asideTabTrack} p-1 rounded-2xl gap-1 text-xs font-semibold`}>
+            <div className={`grid grid-cols-5 ${themeStyles.asideTabTrack} p-1 rounded-2xl gap-0.5 text-xs font-semibold`}>
               {MODE_TABS.map((tab) => {
                 const active = mode === tab.id
                 return (
                   <button
                     key={tab.id}
                     onClick={() => setMode(tab.id)}
-                    className={`flex items-center justify-center space-x-1 py-1.5 rounded-xl transition-all ${
+                    className={`flex items-center justify-center space-x-0.5 py-1.5 rounded-xl transition-all ${
                       active
                         ? themeStyles.asideTabActive
                         : themeStyles.asideTabInactive
                     }`}
                   >
                     {tab.icon}
-                    <span>{tab.id === 'notes' ? `笔记 (${annotations.length})` : tab.label}</span>
+                    <span className="text-[10px] truncate">{tab.id === 'notes' ? `笔记 (${annotations.length})` : tab.label}</span>
                   </button>
                 )
               })}
@@ -2715,6 +2875,88 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   </div>
                 )}
               </div>
+            ) : mode === 'chat' ? (
+              <div className="h-full flex flex-col justify-between -m-3">
+                {/* 伴读追问多轮消息流 */}
+                <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                  {companionMessages.map((msg, idx) => (
+                    <div
+                      key={msg.id}
+                      className={`flex flex-col ${msg.role === 'user' ? 'items-end' : 'items-start'}`}
+                    >
+                      <div
+                        className={`max-w-[92%] rounded-2xl px-3.5 py-2.5 text-xs leading-relaxed ${
+                          msg.role === 'user'
+                            ? 'bg-purple-600 text-white rounded-tr-xs shadow-2xs'
+                            : `${themeStyles.asideNoteCard} rounded-tl-xs border space-y-2`
+                        }`}
+                      >
+                        {msg.role === 'assistant' ? (
+                          <div className="prose prose-xs max-w-none dark:prose-invert">
+                            <ReactMarkdown>{msg.content}</ReactMarkdown>
+                          </div>
+                        ) : (
+                          <p className="whitespace-pre-wrap">{msg.content}</p>
+                        )}
+
+                        {msg.isStreaming && (
+                          <span className="inline-block w-1.5 h-3 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
+                        )}
+
+                        {msg.role === 'assistant' && !msg.isStreaming && msg.id !== 'init' && (
+                          <div className="flex items-center justify-end pt-1.5 border-t border-black/[0.04] dark:border-white/[0.06]">
+                            <button
+                              onClick={() => handleSaveCompanionNote(msg, idx)}
+                              className={`inline-flex items-center space-x-1 px-2.5 py-1 rounded-lg text-[10px] font-medium transition-colors ${
+                                savedCompanionNoteIds.has(msg.id)
+                                  ? 'bg-purple-600/20 text-purple-700 dark:text-purple-300 font-bold'
+                                  : 'bg-black/5 dark:bg-white/5 hover:bg-purple-500/15 text-purple-600 dark:text-purple-400'
+                              }`}
+                              title="将本条解析保存为读书笔记"
+                            >
+                              <Bookmark className="w-3 h-3 text-purple-500" />
+                              <span>{savedCompanionNoteIds.has(msg.id) ? '✓ 已存入笔记' : '📌 存入读书笔记'}</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                  <div ref={companionEndRef} />
+                </div>
+
+                {/* 底部即时追问输入框 */}
+                <div className="p-3 border-t border-black/[0.06] dark:border-white/[0.08] shrink-0">
+                  <div className={`flex items-center space-x-2 rounded-2xl p-1.5 pl-3 border focus-within:ring-2 focus-within:ring-purple-500/20 ${themeStyles.modalInput}`}>
+                    <input
+                      type="text"
+                      value={companionInput}
+                      onChange={(e) => setCompanionInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          handleSendCompanionChat()
+                        }
+                      }}
+                      placeholder="针对本文即时深入追问... (Enter 发送)"
+                      disabled={companionGenerating}
+                      className="flex-1 bg-transparent text-xs focus:outline-none placeholder:opacity-40"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleSendCompanionChat()}
+                      disabled={!companionInput.trim() || companionGenerating}
+                      className="w-7 h-7 rounded-xl bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center disabled:opacity-40 transition-all shrink-0 active:scale-95 shadow-2xs"
+                    >
+                      {companionGenerating ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Send className="w-3 h-3" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
             ) : streamError ? (
               isUnconfiguredError(streamError) ? (
                 <NoApiKeyNotice
@@ -2859,6 +3101,21 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>要点</span>
+          </button>
+
+          <span className="w-px h-3 bg-white/20" />
+
+          <button
+            onClick={() => {
+              const text = tooltip.selectedText
+              setTooltip((prev) => ({ ...prev, show: false }))
+              handleSendCompanionChat(`请结合当前文档，帮我深入解析这一段重点内容与代码含义：「${text}」`)
+            }}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-purple-300 font-medium"
+            title="在右侧伴读面板向 AI 发起即时追问"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>问伴读</span>
           </button>
 
           <span className="w-px h-3 bg-white/20" />

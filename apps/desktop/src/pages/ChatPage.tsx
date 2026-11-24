@@ -78,6 +78,37 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
   const [input, setInput] = useState('')
   const [isGenerating, setIsGenerating] = useState(false)
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null)
+  const [savedNoteMsgIds, setSavedNoteMsgIds] = useState<Set<string>>(new Set())
+
+  // 一键反向收录为读书笔记
+  const handleSaveToNotes = async (msg: ChatMessage, msgIdx: number) => {
+    const targetDocId = selectedDocId || (msg.citations && msg.citations[0]?.doc_id)
+    if (!targetDocId || !backendUrl) {
+      alert('请先在顶部指定关联文档，或确保回答中包含文档溯源引用')
+      return
+    }
+    const prevUserMsg = messages[msgIdx - 1]?.role === 'user' ? messages[msgIdx - 1].content : 'AI 对话深度洞察'
+    const pageIdx = msg.citations && msg.citations[0] ? Math.max(0, msg.citations[0].page_number - 1) : 0
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/reader/annotations`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          document_id: targetDocId,
+          page_index: pageIdx,
+          selected_text: prevUserMsg.slice(0, 100),
+          color: 'purple',
+          tags: ['AI问答'],
+          ai_insight: msg.content,
+        }),
+      })
+      if (resp.ok) {
+        setSavedNoteMsgIds((prev) => new Set([...prev, msg.id]))
+      }
+    } catch (e) {
+      console.error('收录笔记失败', e)
+    }
+  }
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
@@ -429,7 +460,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                 />
               </div>
             )}
-            {messages.map((msg) => (
+            {messages.map((msg, idx) => (
               <div
                 key={msg.id}
                 className={`flex items-start space-x-3 ${
@@ -487,6 +518,24 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                           <span className="text-emerald-600 dark:text-emerald-400 font-semibold">{Math.round(cite.score * 100)}%</span>
                         </button>
                       ))}
+                    </div>
+                  )}
+
+                  {/* 助手消息操作栏：一键反向沉淀为读书笔记 */}
+                  {msg.role === 'assistant' && !msg.isStreaming && msg.id !== 'welcome' && (
+                    <div className="flex items-center space-x-2 pt-1 opacity-80 hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={() => handleSaveToNotes(msg, idx)}
+                        className={`inline-flex items-center space-x-1 px-2.5 py-0.5 rounded-lg text-[11px] font-medium border transition-colors ${
+                          savedNoteMsgIds.has(msg.id)
+                            ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300 border-purple-500/30 font-bold'
+                            : 'bg-black/5 dark:bg-white/5 text-zinc-600 dark:text-zinc-300 hover:bg-purple-500/15 hover:text-purple-600 dark:hover:text-purple-400 border-black/[0.04] dark:border-white/[0.06]'
+                        }`}
+                        title="将本条问答与解析存入对应文档的读书笔记"
+                      >
+                        <Bookmark className="w-3 h-3 text-purple-500" />
+                        <span>{savedNoteMsgIds.has(msg.id) ? '✓ 已存入读书笔记' : '📌 存入读书笔记'}</span>
+                      </button>
                     </div>
                   )}
                 </div>

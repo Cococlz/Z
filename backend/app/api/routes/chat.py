@@ -20,10 +20,11 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
 RAG_TOP_K = 5
-SYSTEM_PROMPT = """你是智阅AI的智能问答助手。
+SYSTEM_PROMPT = """你是智阅AI的智能文档伴读与问答助手。
 你会收到用户上传文档的相关段落作为参考资料，请基于这些资料回答用户问题。
+你具备多轮追问与上下文理解能力，如果用户的问题指代前文内容，请结合先前的对话与参考资料进行连贯作答。
 如果资料中没有相关信息，请如实告知，不要编造内容。
-回答请使用中文，保持简洁准确。"""
+回答请使用中文，排版结构清晰，重要概念与代码使用 Markdown 规范标记。"""
 
 
 class ChatRequest(BaseModel):
@@ -51,8 +52,28 @@ async def _stream_chat(
     import uuid as _uuid
 
     try:
+        # 0. 多轮对话历史读取与滑动窗口保护
+        recent_history = []
+        if conversation_id:
+            all_history = (
+                db.query(Message)
+                .filter(Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.asc())
+                .all()
+            )
+            # 截取最近 6 条（即 3 轮问答），防止长对话超出上下文窗口
+            recent_history = all_history[-6:] if len(all_history) > 6 else all_history
+
+        # 针对代词追问与短问题进行检索词自适应关联（让 RAG 准确定位）
+        search_query = question.strip()
+        if recent_history:
+            last_user_msgs = [m for m in recent_history if m.role == "user"]
+            pronoun_kws = ["它", "刚才", "那", "这个", "这", "其", "第二", "第三", "前一个", "后一个", "区别", "怎么写", "为什么"]
+            if last_user_msgs and (len(search_query) < 18 or any(kw in search_query for kw in pronoun_kws)):
+                search_query = f"{last_user_msgs[-1].content} {search_query}"
+
         # 1. RAG 检索
-        hits = rag_service.search(question, doc_id=doc_id, top_k=RAG_TOP_K)
+        hits = rag_service.search(search_query, doc_id=doc_id, top_k=RAG_TOP_K)
         citations = [
             {
                 "doc_id": h["doc_id"],
@@ -66,7 +87,7 @@ async def _stream_chat(
         ]
         yield f"event: citations\ndata: {json.dumps(citations, ensure_ascii=False)}\n\n"
 
-        # 2. 构造 prompt
+        # 2. 构造携带历史会话记忆的 messages prompt
         context_parts = []
         for i, h in enumerate(hits, 1):
             title = h.get("section_title") or f"段落 {i}"
@@ -75,8 +96,14 @@ async def _stream_chat(
 
         messages = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": f"参考资料：\n{context_text}\n\n问题：{question}"},
         ]
+        # 注入历史多轮对话上下文
+        for m in recent_history:
+            messages.append({"role": m.role, "content": m.content})
+
+        # 注入当前轮问题及对应 RAG 资料
+        current_content = f"参考资料：\n{context_text}\n\n问题：{question}"
+        messages.append({"role": "user", "content": current_content})
 
         # 3. 流式调用 LLM
         provider = get_provider()
