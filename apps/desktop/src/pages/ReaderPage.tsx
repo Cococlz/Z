@@ -2569,10 +2569,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     ])
                     setCompanionConvId(null)
                   }}
-                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-black/5 dark:bg-white/5 hover:bg-black/10 dark:hover:bg-white/10 active:scale-95 transition-all flex items-center space-x-1 opacity-70 hover:opacity-100"
+                  className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-600 dark:text-purple-200 hover:bg-purple-500/25 active:scale-95 transition-all flex items-center space-x-1.5 border border-purple-500/20 dark:border-purple-400/30 shadow-2xs"
                   title="清空当前伴读对话历史"
                 >
-                  <RefreshCw className="w-3 h-3" />
+                  <RefreshCw className="w-3 h-3 text-purple-600 dark:text-purple-300" />
                   <span>新对话</span>
                 </button>
               ) : (
