@@ -15,7 +15,9 @@
   "build": {
     "appId": "com.zhiyue.ai",
     "productName": "智阅 AI",
+    "icon": "build/icon.png",
     "mac": {
+      "icon": "build/icon.icns",
       "target": [
         "dmg",
         "zip"
@@ -24,6 +26,7 @@
       "identity": null
     },
     "win": {
+      "icon": "build/icon.ico",
       "target": [
         "nsis",
         "portable"

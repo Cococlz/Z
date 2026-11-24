@@ -268,6 +268,7 @@ function createWindow() {
     y: savedBounds.y,
     minWidth: 960,
     minHeight: 640,
+    icon: path.join(__dirname, '../build/icon.png'),
     titleBarStyle: isMac ? 'hiddenInset' : 'hidden',
     ...(isMac
       ? { trafficLightPosition: { x: 18, y: 18 } }
