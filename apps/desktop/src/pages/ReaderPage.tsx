@@ -396,6 +396,9 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [currentPageIdx, setCurrentPageIdx] = useState<number>(0)
   const [loadingContent, setLoadingContent] = useState(false)
 
+  const totalPages = docContent?.pages?.length || 0
+  const isPdf = docContent?.file_type?.toLowerCase() === 'pdf'
+
   // 划线与批注笔记状态
   const [annotations, setAnnotations] = useState<AnnotationItem[]>([])
   const [activeAnnotation, setActiveAnnotation] = useState<AnnotationItem | null>(null)
@@ -977,6 +980,96 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       window.getSelection()?.removeAllRanges()
     }
   }
+
+  // 极客沉浸键盘流快捷键监听 (1/2/3/4 四色划线、J/K 翻页、Esc 快捷退出)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // 1. 若当前正在文本输入框内编辑，则跳过快捷键
+      const activeEl = document.activeElement
+      const isInput =
+        activeEl instanceof HTMLInputElement ||
+        activeEl instanceof HTMLTextAreaElement ||
+        activeEl?.getAttribute('contenteditable') === 'true'
+      if (isInput) return
+
+      // 2. Escape: 快捷关闭浮层、弹窗、抽屉与气泡
+      if (e.key === 'Escape') {
+        if (tooltip.show) {
+          setTooltip((prev) => ({ ...prev, show: false }))
+          window.getSelection()?.removeAllRanges()
+          return
+        }
+        if (inlineResult.show) {
+          setInlineResult((prev) => ({ ...prev, show: false }))
+          return
+        }
+        if (activeAnnotation) {
+          setActiveAnnotation(null)
+          return
+        }
+        if (showAppearanceMenu) {
+          setShowAppearanceMenu(false)
+          return
+        }
+        if (showTocDrawer) {
+          setShowTocDrawer(false)
+          return
+        }
+        if (synthesisModalOpen) {
+          setSynthesisModalOpen(false)
+          return
+        }
+        return
+      }
+
+      // 3. 数字键 1/2/3/4 四色划线 (当用户选中文本时即刻生效)
+      const currentSelection = window.getSelection()?.toString().trim() || tooltip.selectedText
+      if (currentSelection && ['1', '2', '3', '4'].includes(e.key)) {
+        e.preventDefault()
+        const colorMap: Record<string, HighlightColor> = {
+          '1': 'yellow',
+          '2': 'green',
+          '3': 'purple',
+          '4': 'blue',
+        }
+        const color = colorMap[e.key]
+        if (color) {
+          handleCreateHighlight(color, currentSelection)
+        }
+        return
+      }
+
+      // 4. 左右方向键 / J / K 沉浸翻页 (在精读排版多页模式下)
+      if (readViewMode === 'extracted' && totalPages > 1) {
+        if (e.key === 'ArrowLeft' || e.key === 'j' || e.key === 'J') {
+          e.preventDefault()
+          setCurrentPageIdx((p) => Math.max(0, p - 1))
+          return
+        }
+        if (e.key === 'ArrowRight' || e.key === 'k' || e.key === 'K') {
+          e.preventDefault()
+          setCurrentPageIdx((p) => Math.min(totalPages - 1, p + 1))
+          return
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [
+    tooltip.show,
+    tooltip.selectedText,
+    inlineResult.show,
+    activeAnnotation,
+    showAppearanceMenu,
+    showTocDrawer,
+    synthesisModalOpen,
+    readViewMode,
+    totalPages,
+    selectedDocId,
+    backendUrl,
+    currentPageIdx,
+  ])
 
   // 2. 将 AI 解读/翻译收录至读书笔记
   const handleSaveAiInsightToNotes = async () => {
@@ -1642,8 +1735,6 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   }
 
   const currentPage = docContent?.pages?.[currentPageIdx]
-  const totalPages = docContent?.pages?.length || 0
-  const isPdf = docContent?.file_type?.toLowerCase() === 'pdf'
 
   // 当前正文所处的大纲章节高亮识别
   const activeTocId = (() => {
@@ -2510,7 +2601,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             </>
           ) : (
             /* 视图 B: 原版 PDF 高清视觉版面对照 */
-            <div className="flex-1 h-full w-full bg-zinc-100 flex flex-col">
+            <div className="flex-1 h-full w-full bg-zinc-100 dark:bg-[#151516] flex flex-col transition-colors">
               {fileInfo && isPdf ? (
                 <iframe
                   src={`${fileInfo.file_url}#toolbar=1&navpanes=0`}
@@ -2518,14 +2609,23 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   className="w-full h-full border-none rounded-3xl"
                 />
               ) : (
-                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-3 text-zinc-400">
-                  <div className="w-12 h-12 rounded-3xl bg-white shadow-2xs flex items-center justify-center text-blue-500">
-                    <FileSearch className="w-6 h-6" />
+                <div className="h-full flex flex-col items-center justify-center text-center p-8 space-y-4 text-zinc-400">
+                  <div className="w-14 h-14 rounded-3xl bg-white dark:bg-white/10 shadow-sm flex items-center justify-center text-blue-500 dark:text-blue-400">
+                    <FileSearch className="w-7 h-7" />
                   </div>
-                  <h3 className="text-sm font-bold text-zinc-700">当前文档非 PDF 原版格式</h3>
-                  <p className="text-xs max-w-sm">
-                    原版图文对照优先针对 PDF 提供高保真版面渲染，Word 或 TXT 文档建议使用「精读排版」进行阅读。
-                  </p>
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-bold text-zinc-800 dark:text-zinc-100">当前文档非 PDF 原版格式</h3>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 max-w-sm">
+                      原版图文对照优先针对 PDF 提供高保真版面渲染，Word 与文本格式建议使用「精读排版」进行舒适沉浸阅读。
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setReadViewMode('extracted')}
+                    className="px-4 py-2 rounded-2xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs transition active:scale-95 flex items-center space-x-1.5"
+                  >
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>返回精读排版</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -3043,28 +3143,36 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           style={{ top: tooltip.y, left: tooltip.x }}
           className="fixed z-50 flex items-center bg-zinc-900/90 text-white backdrop-blur-md px-2 py-1.5 rounded-full shadow-2xl border border-white/10 space-x-1.5 animate-fade-in select-none"
         >
-          {/* 四色高亮划线按钮 */}
+          {/* 四色高亮划线按钮 (支持全局快捷键 1/2/3/4) */}
           <div className="flex items-center space-x-1.5 px-1.5 py-0.5">
             <button
               onClick={() => handleCreateHighlight('yellow')}
-              className="w-3.5 h-3.5 rounded-full bg-amber-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="🟡 标记重点 (核心考点 / 关键定义)"
-            />
+              className="group/btn relative w-4 h-4 rounded-full bg-amber-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20 flex items-center justify-center"
+              title="🟡 标记重点 (快捷键 1)"
+            >
+              <span className="text-[8px] font-black text-amber-950 opacity-0 group-hover/btn:opacity-100 select-none">1</span>
+            </button>
             <button
               onClick={() => handleCreateHighlight('green')}
-              className="w-3.5 h-3.5 rounded-full bg-emerald-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="🟢 标记理解 (原理解析 / 要点拆解)"
-            />
+              className="group/btn relative w-4 h-4 rounded-full bg-emerald-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20 flex items-center justify-center"
+              title="🟢 标记理解 (快捷键 2)"
+            >
+              <span className="text-[8px] font-black text-emerald-950 opacity-0 group-hover/btn:opacity-100 select-none">2</span>
+            </button>
             <button
               onClick={() => handleCreateHighlight('purple')}
-              className="w-3.5 h-3.5 rounded-full bg-purple-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="🟣 记录思考 (个人见解 / 拓展联想)"
-            />
+              className="group/btn relative w-4 h-4 rounded-full bg-purple-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20 flex items-center justify-center"
+              title="🟣 记录思考 (快捷键 3)"
+            >
+              <span className="text-[8px] font-black text-purple-950 opacity-0 group-hover/btn:opacity-100 select-none">3</span>
+            </button>
             <button
               onClick={() => handleCreateHighlight('blue')}
-              className="w-3.5 h-3.5 rounded-full bg-blue-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20"
-              title="🔵 记录疑问 (认知困惑 / 待解疑难)"
-            />
+              className="group/btn relative w-4 h-4 rounded-full bg-blue-400 hover:scale-125 active:scale-95 transition-all shadow-xs border border-white/20 flex items-center justify-center"
+              title="🔵 记录疑问 (快捷键 4)"
+            >
+              <span className="text-[8px] font-black text-blue-950 opacity-0 group-hover/btn:opacity-100 select-none">4</span>
+            </button>
           </div>
 
           <span className="w-px h-3 bg-white/20" />

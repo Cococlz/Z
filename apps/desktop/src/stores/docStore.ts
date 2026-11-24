@@ -91,8 +91,12 @@ interface DocStore {
   onlyFavorites: boolean
   setOnlyFavorites: (only: boolean) => void
   toggleFavorite: (docId: string) => Promise<boolean>
+  renameDocument: (docId: string, newName: string) => Promise<void>
+  batchDeleteDocuments: (docIds: string[]) => Promise<number>
+  batchUpdateTags: (docIds: string[], addTags: string[], removeTags: string[]) => Promise<number>
   updateDocTags: (docId: string, tags: string[]) => Promise<string[]>
   exportAllNotes: () => Promise<{ filename: string; content: string; total_notes: number; total_docs: number }>
+  exportSelectedNotes: (docIds: string[]) => Promise<{ filename: string; content: string; total_notes: number; total_docs: number }>
 }
 
 export const useDocStore = create<DocStore>((set, get) => ({
@@ -215,6 +219,57 @@ export const useDocStore = create<DocStore>((set, get) => ({
     }
   },
 
+  renameDocument: async (docId, newName) => {
+    const { backendUrl } = get()
+    if (!backendUrl) return
+    const res = await fetch(`${backendUrl}/api/v1/documents/${docId}/rename`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: newName }),
+    })
+    if (!res.ok) throw new Error('重命名失败')
+    const updated = await res.json()
+    set({
+      documents: get().documents.map((d) => (d.id === docId ? { ...d, name: updated.name } : d)),
+    })
+  },
+
+  batchDeleteDocuments: async (docIds) => {
+    const { backendUrl } = get()
+    if (!backendUrl || docIds.length === 0) return 0
+    const res = await fetch(`${backendUrl}/api/v1/documents/batch/delete`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_ids: docIds }),
+    })
+    if (!res.ok) throw new Error('批量删除失败')
+    const data = await res.json()
+    const deleteSet = new Set(docIds)
+    set({
+      documents: get().documents.filter((d) => !deleteSet.has(d.id)),
+    })
+    return data.deleted_count || 0
+  },
+
+  batchUpdateTags: async (docIds, addTags, removeTags) => {
+    const { backendUrl } = get()
+    if (!backendUrl || docIds.length === 0) return 0
+    const res = await fetch(`${backendUrl}/api/v1/documents/batch/tags`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        document_ids: docIds,
+        add_tags: addTags,
+        remove_tags: removeTags,
+      }),
+    })
+    if (!res.ok) throw new Error('批量更新标签失败')
+    const data = await res.json()
+    // Refresh documents to sync state
+    await get().fetchDocuments()
+    return data.updated_count || 0
+  },
+
   updateDocTags: async (docId, tags) => {
     const { backendUrl } = get()
     set({
@@ -243,6 +298,18 @@ export const useDocStore = create<DocStore>((set, get) => ({
     const { backendUrl } = get()
     if (!backendUrl) throw new Error('后端未就绪')
     const res = await fetch(`${backendUrl}/api/v1/documents/notes/export-all`)
+    if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    return await res.json()
+  },
+
+  exportSelectedNotes: async (docIds) => {
+    const { backendUrl } = get()
+    if (!backendUrl) throw new Error('后端未就绪')
+    const res = await fetch(`${backendUrl}/api/v1/documents/notes/export-selected`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ document_ids: docIds }),
+    })
     if (!res.ok) throw new Error(`HTTP ${res.status}`)
     return await res.json()
   },

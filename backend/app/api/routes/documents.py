@@ -25,6 +25,10 @@ from app.api.schemas import (
     AllTagsResponse,
     TagStat,
     ExportNotesResponse,
+    RenameDocumentRequest,
+    BatchDeleteRequest,
+    BatchTagsRequest,
+    ExportSelectedNotesRequest,
 )
 from app.database.session import get_db
 from app.database.models import Annotation
@@ -118,21 +122,15 @@ def get_all_tags(db: Session = Depends(get_db)):
     return AllTagsResponse(tags=sorted_tags)
 
 
-@router.get(
-    "/notes/export-all",
-    response_model=ExportNotesResponse,
-    summary="Export all reading highlights and notes across library as Markdown",
-)
-def export_all_notes(db: Session = Depends(get_db)):
-    docs = document_service.list_documents(db)
+def _build_notes_markdown(db: Session, docs: list, title: str) -> ExportNotesResponse:
     total_notes = 0
     total_docs = 0
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M")
-    filename = f"智阅AI_全库读书笔记_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
+    filename = f"智阅AI_读书笔记_{datetime.now().strftime('%Y%m%d_%H%M%S')}.md"
 
     md_lines = [
-        f"# 📚 智阅 AI · 全知识库读书笔记资产总览",
+        f"# 📚 {title}",
         f"> 本地优先个人智能工作站 · 资产导出于 {now_str}",
         "",
         "---",
@@ -204,6 +202,76 @@ def export_all_notes(db: Session = Depends(get_db)):
 
 
 @router.get(
+    "/notes/export-all",
+    response_model=ExportNotesResponse,
+    summary="Export all reading highlights and notes across library as Markdown",
+)
+def export_all_notes(db: Session = Depends(get_db)):
+    docs = document_service.list_documents(db)
+    return _build_notes_markdown(db, docs, "智阅 AI · 全知识库读书笔记资产总览")
+
+
+@router.post(
+    "/notes/export-selected",
+    response_model=ExportNotesResponse,
+    summary="Export annotations of selected documents as Markdown",
+)
+def export_selected_notes(req: ExportSelectedNotesRequest, db: Session = Depends(get_db)):
+    all_docs = document_service.list_documents(db)
+    selected_set = set(req.document_ids)
+    docs = [d for d in all_docs if d.id in selected_set]
+    return _build_notes_markdown(db, docs, f"智阅 AI · 精选 {len(docs)} 篇文档读书笔记")
+
+
+
+@router.post(
+    "/batch/delete",
+    summary="Batch delete multiple documents and their indexes",
+)
+def batch_delete_documents(req: BatchDeleteRequest, db: Session = Depends(get_db)):
+    deleted_count = 0
+    for doc_id in req.document_ids:
+        try:
+            if document_service.delete_document(db, doc_id):
+                deleted_count += 1
+        except Exception:
+            pass
+    return {"success": True, "deleted_count": deleted_count}
+
+
+@router.post(
+    "/batch/tags",
+    summary="Batch add or remove tags across documents",
+)
+def batch_update_tags(req: BatchTagsRequest, db: Session = Depends(get_db)):
+    clean_adds = [t.strip().lstrip("#").strip() for t in req.add_tags if t.strip()]
+    clean_removes = [t.strip().lstrip("#").strip() for t in req.remove_tags if t.strip()]
+    updated_count = 0
+
+    for doc_id in req.document_ids:
+        doc = document_service.get_document(db, doc_id)
+        if not doc:
+            continue
+        try:
+            existing = json.loads(doc.tags) if doc.tags else []
+        except Exception:
+            existing = []
+
+        tag_set = set(existing)
+        for a in clean_adds:
+            tag_set.add(a)
+        for r in clean_removes:
+            tag_set.discard(r)
+
+        doc.tags = json.dumps(list(tag_set), ensure_ascii=False)
+        db.add(doc)
+        updated_count += 1
+
+    db.commit()
+    return {"success": True, "updated_count": updated_count}
+
+
+@router.get(
     "/{doc_id}",
     response_model=DocumentDetailOut,
     summary="Get document detail with optional preview text",
@@ -258,6 +326,26 @@ def update_tags(doc_id: str, req: UpdateTagsRequest, db: Session = Depends(get_d
     db.add(doc)
     db.commit()
     return UpdateTagsResponse(id=doc.id, tags=clean_tags)
+
+
+@router.patch(
+    "/{doc_id}/rename",
+    response_model=DocumentOut,
+    summary="Rename a document",
+)
+def rename_document(doc_id: str, req: RenameDocumentRequest, db: Session = Depends(get_db)):
+    doc = document_service.get_document(db, doc_id)
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found")
+    new_name = req.name.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="文档名称不能为空")
+    doc.name = new_name
+    doc.updated_at = datetime.utcnow()
+    db.add(doc)
+    db.commit()
+    db.refresh(doc)
+    return DocumentOut.model_validate(doc)
 
 
 @router.delete(

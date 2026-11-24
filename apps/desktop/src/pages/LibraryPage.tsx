@@ -3,7 +3,8 @@ import {
   FileText, FileImage, FileCode, Upload, Trash2,
   RefreshCw, CheckCircle2, Clock, XCircle, Loader2,
   FolderOpen, FileType2, Star, Tag, BookOpen, Download,
-  Plus, Search, MessageSquare, Sparkles, X,
+  Plus, Search, MessageSquare, Sparkles, X, Edit2, Check,
+  LayoutGrid, List, CheckSquare, Square,
 } from 'lucide-react'
 import { useDocStore, DocStatus, Document } from '../stores/docStore'
 
@@ -71,25 +72,52 @@ const STATUS_BADGE: Record<DocStatus, React.ReactNode> = {
   ),
 }
 
-// ── DocRow component ──────────────────────────────────────────────────────────
+// ── DocRow component (Table View) ─────────────────────────────────────────────
 
 function DocRow({
   doc,
   backendUrl,
+  selected,
+  onToggleSelect,
   onDelete,
+  onRename,
   onEditTags,
   onOpenReader,
   onOpenChat,
 }: {
   doc: Document
   backendUrl: string
+  selected: boolean
+  onToggleSelect: (id: string) => void
   onDelete: (id: string) => void
+  onRename: (id: string, newName: string) => Promise<void>
   onEditTags: (doc: Document) => void
   onOpenReader: (doc: Document) => void
   onOpenChat: (doc: Document) => void
 }) {
   const [deleting, setDeleting] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingName, setEditingName] = useState(doc.name)
+  const [savingName, setSavingName] = useState(false)
   const toggleFavorite = useDocStore((s) => s.toggleFavorite)
+
+  async function handleSaveRename() {
+    const trimmed = editingName.trim()
+    if (!trimmed || trimmed === doc.name) {
+      setIsEditing(false)
+      setEditingName(doc.name)
+      return
+    }
+    setSavingName(true)
+    try {
+      await onRename(doc.id, trimmed)
+      setIsEditing(false)
+    } catch (e: any) {
+      alert(`重命名失败: ${e.message}`)
+    } finally {
+      setSavingName(false)
+    }
+  }
 
   async function handleDelete(e: React.MouseEvent) {
     e.stopPropagation()
@@ -108,7 +136,25 @@ function DocRow({
   const progressPct = doc.page_count > 0 ? Math.min(100, Math.round(((readPage + 1) / doc.page_count) * 100)) : 0
 
   return (
-    <tr className="group border-b border-slate-100 dark:border-white/[0.06] hover:bg-slate-50/70 dark:hover:bg-white/[0.03] transition-colors">
+    <tr className={`group border-b border-slate-100 dark:border-white/[0.06] transition-colors ${
+      selected ? 'bg-purple-50/60 dark:bg-purple-950/20' : 'hover:bg-slate-50/70 dark:hover:bg-white/[0.03]'
+    }`}>
+      {/* 批量选择 Checkbox */}
+      <td className="py-3 px-3 w-10 text-center">
+        <button
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggleSelect(doc.id)
+          }}
+          className={`p-1 rounded-md transition ${
+            selected ? 'text-purple-600 dark:text-purple-400' : 'text-zinc-300 dark:text-zinc-600 hover:text-purple-500 opacity-60 group-hover:opacity-100'
+          }`}
+          title={selected ? '取消选择' : '选中此文档'}
+        >
+          {selected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+        </button>
+      </td>
+
       {/* 收藏星标 */}
       <td className="py-3 px-3 w-10 text-center">
         <button
@@ -127,20 +173,75 @@ function DocRow({
         </button>
       </td>
 
-      {/* File icon + name */}
+      {/* File icon + name (with inline rename support) */}
       <td className="py-3 px-3">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-xl bg-slate-100 dark:bg-white/10 flex items-center justify-center flex-none">
             {FILE_ICON[doc.file_type] ?? <FileText className="w-5 h-5 text-slate-400" />}
           </div>
           <div className="min-w-0">
-            <p
-              onClick={() => onOpenReader(doc)}
-              className="text-sm font-semibold text-slate-800 dark:text-zinc-100 truncate max-w-sm hover:text-purple-600 dark:hover:text-purple-400 cursor-pointer transition-colors"
-              title="点击打开精读"
-            >
-              {doc.name}
-            </p>
+            {isEditing ? (
+              <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text"
+                  value={editingName}
+                  onChange={(e) => setEditingName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleSaveRename()
+                    if (e.key === 'Escape') {
+                      setIsEditing(false)
+                      setEditingName(doc.name)
+                    }
+                  }}
+                  autoFocus
+                  className="text-xs font-semibold px-2 py-1 rounded-lg border border-purple-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none w-64 shadow-xs"
+                />
+                <button
+                  onClick={handleSaveRename}
+                  disabled={savingName}
+                  className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+                  title="保存 (Enter)"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+                <button
+                  onClick={() => {
+                    setIsEditing(false)
+                    setEditingName(doc.name)
+                  }}
+                  className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-black/5"
+                  title="取消 (Esc)"
+                >
+                  <X className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 group/name">
+                <p
+                  onClick={() => onOpenReader(doc)}
+                  onDoubleClick={(e) => {
+                    e.stopPropagation()
+                    setEditingName(doc.name)
+                    setIsEditing(true)
+                  }}
+                  className="text-sm font-semibold text-slate-800 dark:text-zinc-100 truncate max-w-sm hover:text-purple-600 dark:hover:text-purple-400 cursor-pointer transition-colors"
+                  title="点击打开精读，双击快速重命名"
+                >
+                  {doc.name}
+                </p>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    setEditingName(doc.name)
+                    setIsEditing(true)
+                  }}
+                  className="opacity-0 group-hover/name:opacity-100 p-1 text-zinc-400 hover:text-purple-600 transition"
+                  title="重命名文档"
+                >
+                  <Edit2 className="w-3 h-3" />
+                </button>
+              </div>
+            )}
             {doc.error_message && (
               <p className="text-[11px] text-red-500 truncate max-w-xs">{doc.error_message}</p>
             )}
@@ -248,6 +349,303 @@ function DocRow({
   )
 }
 
+// ── DocCard component (Grid / Bookshelf View) ──────────────────────────────────
+
+function DocCard({
+  doc,
+  selected,
+  onToggleSelect,
+  onDelete,
+  onRename,
+  onEditTags,
+  onOpenReader,
+  onOpenChat,
+}: {
+  doc: Document
+  selected: boolean
+  onToggleSelect: (id: string) => void
+  onDelete: (id: string) => void
+  onRename: (id: string, newName: string) => Promise<void>
+  onEditTags: (doc: Document) => void
+  onOpenReader: (doc: Document) => void
+  onOpenChat: (doc: Document) => void
+}) {
+  const [isEditing, setIsEditing] = useState(false)
+  const [editingName, setEditingName] = useState(doc.name)
+  const [savingName, setSavingName] = useState(false)
+  const toggleFavorite = useDocStore((s) => s.toggleFavorite)
+
+  async function handleSaveRename() {
+    const trimmed = editingName.trim()
+    if (!trimmed || trimmed === doc.name) {
+      setIsEditing(false)
+      setEditingName(doc.name)
+      return
+    }
+    setSavingName(true)
+    try {
+      await onRename(doc.id, trimmed)
+      setIsEditing(false)
+    } catch (e: any) {
+      alert(`重命名失败: ${e.message}`)
+    } finally {
+      setSavingName(false)
+    }
+  }
+
+  const tags = doc.tags || []
+  const readPage = doc.last_read_page || 0
+  const progressPct = doc.page_count > 0 ? Math.min(100, Math.round(((readPage + 1) / doc.page_count) * 100)) : 0
+
+  const themeConfig = {
+    pdf: {
+      gradient: 'from-rose-500/20 via-pink-500/10 to-amber-500/5 dark:from-rose-950/40 dark:via-pink-950/20 dark:to-transparent',
+      badge: 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/30',
+      icon: <FileImage className="w-8 h-8 text-rose-500" />,
+    },
+    docx: {
+      gradient: 'from-blue-500/20 via-indigo-500/10 to-sky-500/5 dark:from-blue-950/40 dark:via-indigo-950/20 dark:to-transparent',
+      badge: 'bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30',
+      icon: <FileType2 className="w-8 h-8 text-blue-500" />,
+    },
+    txt: {
+      gradient: 'from-slate-500/20 via-zinc-500/10 to-slate-500/5 dark:from-zinc-900/60 dark:via-zinc-900/30 dark:to-transparent',
+      badge: 'bg-slate-500/15 text-slate-700 dark:text-slate-300 border-slate-500/30',
+      icon: <FileText className="w-8 h-8 text-slate-500" />,
+    },
+    md: {
+      gradient: 'from-purple-500/20 via-violet-500/10 to-indigo-500/5 dark:from-purple-950/40 dark:via-violet-950/20 dark:to-transparent',
+      badge: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30',
+      icon: <FileCode className="w-8 h-8 text-purple-500" />,
+    },
+    markdown: {
+      gradient: 'from-purple-500/20 via-violet-500/10 to-indigo-500/5 dark:from-purple-950/40 dark:via-violet-950/20 dark:to-transparent',
+      badge: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30',
+      icon: <FileCode className="w-8 h-8 text-purple-500" />,
+    },
+  }[doc.file_type] || {
+    gradient: 'from-purple-500/20 via-violet-500/10 to-slate-500/5 dark:from-purple-950/40 dark:via-violet-950/20 dark:to-transparent',
+    badge: 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border-purple-500/30',
+    icon: <FileText className="w-8 h-8 text-purple-500" />,
+  }
+
+  return (
+    <div
+      onClick={() => onOpenReader(doc)}
+      className={`group relative flex flex-col justify-between rounded-3xl border transition-all duration-200 cursor-pointer overflow-hidden ${
+        selected
+          ? 'ring-2 ring-purple-500 bg-purple-50/50 dark:bg-purple-950/20 border-purple-500 shadow-md'
+          : 'bg-white dark:bg-[#1C1C1E] border-black/[0.05] dark:border-white/[0.08] hover:shadow-lg hover:border-purple-500/40 hover:-translate-y-0.5'
+      }`}
+    >
+      {/* 封面区域 (Book Cover Aspect) */}
+      <div className={`relative h-44 w-full bg-gradient-to-br ${themeConfig.gradient} p-3.5 flex flex-col justify-between border-b border-black/[0.04] dark:border-white/[0.06] select-none`}>
+        {/* 书脊立体折痕阴影 */}
+        <div className="absolute left-0 top-0 bottom-0 w-2.5 bg-gradient-to-r from-black/10 to-transparent dark:from-black/30 pointer-events-none" />
+
+        {/* 顶部状态与操作条 */}
+        <div className="flex items-center justify-between z-10">
+          {/* 多选框 */}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onToggleSelect(doc.id)
+            }}
+            className={`p-1 rounded-lg backdrop-blur-xs transition ${
+              selected
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'opacity-0 group-hover:opacity-100 bg-white/80 dark:bg-black/60 text-zinc-500 hover:text-purple-600'
+            }`}
+            title={selected ? '取消选择' : '选中此文档'}
+          >
+            {selected ? <CheckSquare className="w-4 h-4" /> : <Square className="w-4 h-4" />}
+          </button>
+
+          <div className="flex items-center space-x-1.5">
+            <span className={`text-[10px] font-mono font-bold uppercase px-1.5 py-0.5 rounded-md border ${themeConfig.badge}`}>
+              .{doc.file_type}
+            </span>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                toggleFavorite(doc.id)
+              }}
+              className={`p-1 rounded-lg backdrop-blur-xs transition active:scale-90 ${
+                doc.is_favorite
+                  ? 'text-amber-500 bg-white/80 dark:bg-black/60 shadow-xs'
+                  : 'text-zinc-400 hover:text-amber-500 bg-white/60 dark:bg-black/40 opacity-0 group-hover:opacity-100'
+              }`}
+              title={doc.is_favorite ? '取消收藏' : '加入星标收藏'}
+            >
+              <Star className={`w-3.5 h-3.5 ${doc.is_favorite ? 'fill-amber-500' : ''}`} />
+            </button>
+          </div>
+        </div>
+
+        {/* 封面中央图标与字数 */}
+        <div className="flex flex-col items-center justify-center my-auto transform transition-transform group-hover:scale-105">
+          <div className="p-3 rounded-2xl bg-white/60 dark:bg-white/10 shadow-xs backdrop-blur-xs">
+            {themeConfig.icon}
+          </div>
+          <span className="text-[10px] font-mono text-zinc-400 dark:text-zinc-400 mt-1">
+            {fmtSize(doc.file_size)} {doc.char_count > 0 && `· ${fmtChars(doc.char_count)}`}
+          </span>
+        </div>
+
+        {/* 底部阅读进度 */}
+        <div className="z-10">
+          {doc.page_count > 0 ? (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-[10px] font-mono text-zinc-500 dark:text-zinc-400">
+                <span>P.{readPage + 1}/{doc.page_count}</span>
+                <span>{progressPct}%</span>
+              </div>
+              <div className="w-full h-1 bg-black/10 dark:bg-white/10 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-purple-500 rounded-full transition-all"
+                  style={{ width: `${progressPct}%` }}
+                />
+              </div>
+            </div>
+          ) : (
+            <div className="text-[10px] text-zinc-400">{STATUS_BADGE[doc.status]}</div>
+          )}
+        </div>
+      </div>
+
+      {/* 卡片下半部元信息与重命名 */}
+      <div className="p-3.5 flex flex-col justify-between flex-1 space-y-2.5">
+        <div>
+          {isEditing ? (
+            <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+              <input
+                type="text"
+                value={editingName}
+                onChange={(e) => setEditingName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleSaveRename()
+                  if (e.key === 'Escape') {
+                    setIsEditing(false)
+                    setEditingName(doc.name)
+                  }
+                }}
+                autoFocus
+                className="w-full text-xs font-bold px-2 py-1 rounded-lg border border-purple-500 bg-white dark:bg-zinc-800 text-zinc-900 dark:text-zinc-100 focus:outline-none shadow-xs"
+              />
+              <button
+                onClick={handleSaveRename}
+                disabled={savingName}
+                className="p-1 rounded-md text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/40"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => {
+                  setIsEditing(false)
+                  setEditingName(doc.name)
+                }}
+                className="p-1 rounded-md text-zinc-400 hover:text-zinc-600 hover:bg-black/5"
+              >
+                <X className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <div className="flex items-start justify-between gap-1 group/title">
+              <h3
+                onDoubleClick={(e) => {
+                  e.stopPropagation()
+                  setEditingName(doc.name)
+                  setIsEditing(true)
+                }}
+                className="text-xs font-bold text-zinc-900 dark:text-zinc-100 line-clamp-2 leading-snug group-hover:text-purple-600 dark:group-hover:text-purple-400 transition-colors"
+                title={`${doc.name} (双击重命名)`}
+              >
+                {doc.name}
+              </h3>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation()
+                  setEditingName(doc.name)
+                  setIsEditing(true)
+                }}
+                className="opacity-0 group-hover/title:opacity-100 p-1 text-zinc-400 hover:text-purple-600 shrink-0 transition"
+                title="重命名文档"
+              >
+                <Edit2 className="w-3 h-3" />
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* 标签 */}
+        <div className="flex items-center gap-1 flex-wrap">
+          {tags.slice(0, 2).map((t) => (
+            <span
+              key={t}
+              onClick={(e) => {
+                e.stopPropagation()
+                useDocStore.getState().setSelectedTag(t)
+              }}
+              className="px-1.5 py-0.5 rounded-md text-[10px] font-medium bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 hover:bg-purple-500/20 transition"
+            >
+              #{t}
+            </span>
+          ))}
+          {tags.length > 2 && (
+            <span className="text-[10px] text-zinc-400 font-mono">+{tags.length - 2}</span>
+          )}
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onEditTags(doc)
+            }}
+            className="p-1 rounded-md text-zinc-400 hover:text-purple-600 hover:bg-black/5 dark:hover:bg-white/10 transition opacity-0 group-hover:opacity-100"
+            title="管理标签"
+          >
+            <Plus className="w-3 h-3" />
+          </button>
+        </div>
+
+        {/* 悬浮操作按钮 */}
+        <div className="pt-2 border-t border-black/[0.03] dark:border-white/[0.04] flex items-center justify-between opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center space-x-1">
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenReader(doc)
+              }}
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-purple-600 hover:bg-purple-50 dark:hover:bg-purple-950/30 transition"
+              title="进入深度精读"
+            >
+              <BookOpen className="w-3.5 h-3.5" />
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onOpenChat(doc)
+              }}
+              className="p-1.5 rounded-lg text-zinc-500 hover:text-emerald-600 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition"
+              title="针对此文档提问"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+            </button>
+          </div>
+          <button
+            onClick={(e) => {
+              e.stopPropagation()
+              onDelete(doc.id)
+            }}
+            className="p-1.5 rounded-lg text-zinc-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-950/30 transition"
+            title="删除文档"
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Main Library Page ─────────────────────────────────────────────────────────
 
 export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: string }) {
@@ -256,7 +654,8 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
   const {
     documents, loading, error, fetchDocuments, removeDocument,
     selectedTag, setSelectedTag, onlyFavorites, setOnlyFavorites,
-    updateDocTags, exportAllNotes, setActivePage, setTargetReaderDoc,
+    updateDocTags, renameDocument, batchDeleteDocuments, batchUpdateTags,
+    exportAllNotes, exportSelectedNotes, setActivePage, setTargetReaderDoc,
   } = useDocStore()
 
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -266,6 +665,17 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
   const [tagInput, setTagInput] = useState('')
   const [toastMsg, setToastMsg] = useState<string | null>(null)
   const [exportingNotes, setExportingNotes] = useState(false)
+
+  // 视图模式：'list' 列表视图 vs 'grid' 大卡片网格书架视图
+  const [viewMode, setViewMode] = useState<'list' | 'grid'>(() => {
+    return (localStorage.getItem('zhiyue_library_view_mode') as 'list' | 'grid') || 'list'
+  })
+
+  // 多选状态
+  const [selectedDocIds, setSelectedDocIds] = useState<Set<string>>(new Set())
+  const [batchTagModalOpen, setBatchTagModalOpen] = useState(false)
+  const [batchTagInput, setBatchTagInput] = useState('')
+  const [batchDeleting, setBatchDeleting] = useState(false)
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
@@ -334,6 +744,57 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
     }
   }
 
+  // 导出所选文档的笔记为 Markdown
+  const handleExportSelectedNotes = async () => {
+    if (exportingNotes || selectedDocIds.size === 0) return
+    setExportingNotes(true)
+    try {
+      const res = await exportSelectedNotes(Array.from(selectedDocIds))
+      const blob = new Blob([res.content], { type: 'text/markdown;charset=utf-8' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = res.filename || '智阅AI_选中笔记.md'
+      a.click()
+      URL.revokeObjectURL(url)
+      showToast(`已导出选中的 ${res.total_docs} 篇文档共 ${res.total_notes} 条笔记！`)
+    } catch (e: any) {
+      showToast(`导出失败: ${e.message}`)
+    } finally {
+      setExportingNotes(false)
+    }
+  }
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    const count = selectedDocIds.size
+    if (count === 0) return
+    if (!window.confirm(`确认批量删除已选中的 ${count} 份文档及其向量索引？`)) return
+    setBatchDeleting(true)
+    try {
+      const deleted = await batchDeleteDocuments(Array.from(selectedDocIds))
+      setSelectedDocIds(new Set())
+      showToast(`已成功删除 ${deleted} 份文档！`)
+    } catch (e: any) {
+      showToast(`批量删除失败: ${e.message}`)
+    } finally {
+      setBatchDeleting(false)
+    }
+  }
+
+  // 批量打标
+  const handleBatchAddTag = async (tagToAdd: string) => {
+    const clean = tagToAdd.trim().replace(/^#+/, '')
+    if (!clean || selectedDocIds.size === 0) return
+    try {
+      const updated = await batchUpdateTags(Array.from(selectedDocIds), [clean], [])
+      showToast(`已为 ${updated} 份文档添加标签 #${clean}`)
+      setBatchTagInput('')
+    } catch (e: any) {
+      showToast(`批量打标失败: ${e.message}`)
+    }
+  }
+
   const handleOpenReader = (doc: Document) => {
     setTargetReaderDoc(doc.id, doc.last_read_page || 0)
     setActivePage('reader')
@@ -376,7 +837,29 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
     return true
   })
 
-  // 标签编辑逻辑
+  // 多选切换
+  const handleToggleSelect = (id: string) => {
+    setSelectedDocIds((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  // 全选 / 取消全选
+  const allFilteredSelected = filtered.length > 0 && filtered.every((d) => selectedDocIds.has(d.id))
+  const handleToggleSelectAll = () => {
+    if (allFilteredSelected) {
+      setSelectedDocIds(new Set())
+    } else {
+      const next = new Set(selectedDocIds)
+      filtered.forEach((d) => next.add(d.id))
+      setSelectedDocIds(next)
+    }
+  }
+
+  // 单个文档标签编辑逻辑
   const handleAddTag = (tagToAdd: string) => {
     if (!tagModalDoc) return
     const clean = tagToAdd.trim().replace(/^#+/, '')
@@ -420,6 +903,38 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
         </div>
 
         <div className="flex items-center gap-2.5">
+          {/* 双视图切换器: 列表 vs 网格 */}
+          <div className="flex items-center bg-black/[0.04] dark:bg-white/[0.06] p-0.5 rounded-2xl border border-black/[0.04] dark:border-white/[0.08]">
+            <button
+              onClick={() => {
+                setViewMode('list')
+                localStorage.setItem('zhiyue_library_view_mode', 'list')
+              }}
+              className={`p-1.5 rounded-xl transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-[#2C2C2E] text-purple-600 dark:text-purple-400 shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+              title="切换至表格列表视图"
+            >
+              <List className="w-4 h-4" />
+            </button>
+            <button
+              onClick={() => {
+                setViewMode('grid')
+                localStorage.setItem('zhiyue_library_view_mode', 'grid')
+              }}
+              className={`p-1.5 rounded-xl transition-all ${
+                viewMode === 'grid'
+                  ? 'bg-white dark:bg-[#2C2C2E] text-purple-600 dark:text-purple-400 shadow-xs'
+                  : 'text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200'
+              }`}
+              title="切换至大卡片网格书架视图"
+            >
+              <LayoutGrid className="w-4 h-4" />
+            </button>
+          </div>
+
           {/* 导出全库笔记按钮 */}
           <button
             onClick={handleExportAllNotes}
@@ -620,68 +1135,179 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
 
         </section>
 
-        {/* 3. 文档主体资产表格 */}
-        <section className="bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.04] dark:border-white/[0.08] shadow-sm overflow-hidden">
-          {error && (
-            <div className="p-4 text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border-b border-red-100 dark:border-red-900/30">
-              加载失败：{error}
-            </div>
-          )}
+        {/* 3. 文档主体资产视图 (表格视图 vs 网格卡片视图) */}
+        {error && (
+          <div className="p-4 rounded-3xl text-xs text-red-500 bg-red-50 dark:bg-red-950/30 border border-red-100 dark:border-red-900/30">
+            加载失败：{error}
+          </div>
+        )}
 
-          {!error && filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400 dark:text-zinc-500 space-y-2">
-              <FileText className="w-10 h-10 opacity-30" />
-              <p className="text-xs font-semibold">
-                {search || selectedTag || onlyFavorites ? '没有找到符合条件的文档' : '还没有导入任何文档'}
-              </p>
-              {(search || selectedTag || onlyFavorites) && (
-                <button
-                  onClick={() => {
-                    setSearch('')
-                    setSelectedTag(null)
-                    setOnlyFavorites(false)
-                  }}
-                  className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
-                >
-                  重置所有筛选条件
-                </button>
-              )}
-            </div>
-          ) : (
-            <table className="w-full text-left">
-              <thead>
-                <tr className="border-b border-slate-100 dark:border-white/[0.08] text-[11px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide bg-[#F2F2F7]/30 dark:bg-white/[0.02]">
-                  <th className="py-3 px-3 text-center w-10 whitespace-nowrap">收藏</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">文档名称</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">格式</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">大小</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">标签专栏</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">阅读进度</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">状态</th>
-                  <th className="py-3 px-3 font-semibold whitespace-nowrap">导入时间</th>
-                  <th className="py-3 px-3 text-right whitespace-nowrap">操作</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((doc) => (
-                  <DocRow
-                    key={doc.id}
-                    doc={doc}
-                    backendUrl={backendUrl}
-                    onDelete={removeDocument}
-                    onEditTags={(d) => setTagModalDoc(d)}
-                    onOpenReader={handleOpenReader}
-                    onOpenChat={handleOpenChat}
-                  />
-                ))}
-              </tbody>
-            </table>
-          )}
-        </section>
+        {!error && filtered.length === 0 ? (
+          <div className="bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.04] dark:border-white/[0.08] shadow-sm flex flex-col items-center justify-center py-20 text-slate-400 dark:text-zinc-500 space-y-2">
+            <FileText className="w-10 h-10 opacity-30" />
+            <p className="text-xs font-semibold">
+              {search || selectedTag || onlyFavorites ? '没有找到符合条件的文档' : '还没有导入任何文档'}
+            </p>
+            {(search || selectedTag || onlyFavorites) && (
+              <button
+                onClick={() => {
+                  setSearch('')
+                  setSelectedTag(null)
+                  setOnlyFavorites(false)
+                }}
+                className="text-xs text-purple-600 dark:text-purple-400 hover:underline"
+              >
+                重置所有筛选条件
+              </button>
+            )}
+          </div>
+        ) : (
+          <>
+            {viewMode === 'list' ? (
+              /* 表格列表视图 */
+              <section className="bg-white dark:bg-[#1C1C1E] rounded-3xl border border-black/[0.04] dark:border-white/[0.08] shadow-sm overflow-hidden">
+                <table className="w-full text-left">
+                  <thead>
+                    <tr className="border-b border-slate-100 dark:border-white/[0.08] text-[11px] text-slate-400 dark:text-zinc-500 uppercase tracking-wide bg-[#F2F2F7]/30 dark:bg-white/[0.02]">
+                      <th className="py-3 px-3 text-center w-10 whitespace-nowrap">
+                        <button
+                          onClick={handleToggleSelectAll}
+                          className="p-1 rounded-md text-zinc-400 hover:text-purple-600 transition"
+                          title={allFilteredSelected ? '取消全选' : '全选文档'}
+                        >
+                          {allFilteredSelected ? <CheckSquare className="w-4 h-4 text-purple-600" /> : <Square className="w-4 h-4" />}
+                        </button>
+                      </th>
+                      <th className="py-3 px-3 text-center w-10 whitespace-nowrap">收藏</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">文档名称</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">格式</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">大小</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">标签专栏</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">阅读进度</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">状态</th>
+                      <th className="py-3 px-3 font-semibold whitespace-nowrap">导入时间</th>
+                      <th className="py-3 px-3 text-right whitespace-nowrap">操作</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filtered.map((doc) => (
+                      <DocRow
+                        key={doc.id}
+                        doc={doc}
+                        backendUrl={backendUrl}
+                        selected={selectedDocIds.has(doc.id)}
+                        onToggleSelect={handleToggleSelect}
+                        onDelete={removeDocument}
+                        onRename={async (id, newName) => {
+                          await renameDocument(id, newName)
+                          showToast(`文档已更名为: ${newName}`)
+                        }}
+                        onEditTags={(d) => setTagModalDoc(d)}
+                        onOpenReader={handleOpenReader}
+                        onOpenChat={handleOpenChat}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            ) : (
+              /* 大卡片网格书架视图 */
+              <section className="space-y-3">
+                <div className="flex items-center justify-between text-xs font-semibold text-zinc-400 px-1">
+                  <span>共展示 {filtered.length} 本书卷</span>
+                  <button
+                    onClick={handleToggleSelectAll}
+                    className="flex items-center space-x-1.5 text-zinc-500 hover:text-purple-600 dark:text-zinc-400 dark:hover:text-purple-300 transition"
+                  >
+                    {allFilteredSelected ? <CheckSquare className="w-4 h-4 text-purple-600" /> : <Square className="w-4 h-4" />}
+                    <span>{allFilteredSelected ? '取消全选' : '全选所有'}</span>
+                  </button>
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-5">
+                  {filtered.map((doc) => (
+                    <DocCard
+                      key={doc.id}
+                      doc={doc}
+                      selected={selectedDocIds.has(doc.id)}
+                      onToggleSelect={handleToggleSelect}
+                      onDelete={removeDocument}
+                      onRename={async (id, newName) => {
+                        await renameDocument(id, newName)
+                        showToast(`文档已更名为: ${newName}`)
+                      }}
+                      onEditTags={(d) => setTagModalDoc(d)}
+                      onOpenReader={handleOpenReader}
+                      onOpenChat={handleOpenChat}
+                    />
+                  ))}
+                </div>
+              </section>
+            )}
+          </>
+        )}
 
       </div>
 
-      {/* 4. 标签管理对话框 (Modal) */}
+      {/* 4. 悬浮批量管理胶囊工具栏 (Floating Batch Action Capsule) */}
+      {selectedDocIds.size > 0 && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 bg-zinc-900/90 dark:bg-[#2C2C2E]/95 text-white backdrop-blur-xl border border-white/10 shadow-2xl rounded-2xl px-5 py-2.5 flex items-center space-x-4 animate-slide-up">
+          <div className="flex items-center space-x-2 border-r border-white/15 pr-4">
+            <span className="w-2 h-2 rounded-full bg-purple-400 animate-pulse" />
+            <span className="text-xs font-semibold">已选 {selectedDocIds.size} 份文档</span>
+          </div>
+
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => setBatchTagModalOpen(true)}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 active:scale-95 transition"
+              title="给选中的所有文档批量贴上标签"
+            >
+              <Tag className="w-3.5 h-3.5 text-purple-400" />
+              <span>批量打标</span>
+            </button>
+
+            <button
+              onClick={handleExportSelectedNotes}
+              disabled={exportingNotes}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-white/10 hover:bg-white/20 active:scale-95 transition"
+              title="打包导出所选文档的所有划线与读书笔记"
+            >
+              {exportingNotes ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Download className="w-3.5 h-3.5 text-emerald-400" />
+              )}
+              <span>导出选中笔记</span>
+            </button>
+
+            <button
+              onClick={handleBatchDelete}
+              disabled={batchDeleting}
+              className="flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-xs font-medium bg-red-500/20 hover:bg-red-500/30 text-red-300 border border-red-500/30 active:scale-95 transition"
+              title="批量删除所选文档"
+            >
+              {batchDeleting ? (
+                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+              ) : (
+                <Trash2 className="w-3.5 h-3.5 text-red-400" />
+              )}
+              <span>批量删除</span>
+            </button>
+          </div>
+
+          <div className="border-l border-white/15 pl-3">
+            <button
+              onClick={() => setSelectedDocIds(new Set())}
+              className="p-1 rounded-lg text-zinc-400 hover:text-white hover:bg-white/10 transition"
+              title="取消多选"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 5. 单个文档标签管理对话框 (Modal) */}
       {tagModalDoc && (
         <div className="fixed inset-0 z-50 bg-black/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
           <div className="bg-white dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
@@ -779,6 +1405,85 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
             <div className="pt-2 flex justify-end">
               <button
                 onClick={() => setTagModalDoc(null)}
+                className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] text-zinc-700 dark:text-zinc-200 transition"
+              >
+                完成
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
+
+      {/* 6. 批量打标对话框 (Batch Tag Modal) */}
+      {batchTagModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/40 dark:bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-[#1C1C1E] border border-black/[0.08] dark:border-white/[0.1] rounded-3xl max-w-md w-full p-6 shadow-2xl space-y-4 animate-scale-up">
+            
+            <div className="flex items-center justify-between pb-2 border-b border-black/[0.04] dark:border-white/[0.06]">
+              <div className="flex items-center space-x-2">
+                <Tag className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100">批量打标 (已选中 {selectedDocIds.size} 份)</h3>
+              </div>
+              <button
+                onClick={() => setBatchTagModalOpen(false)}
+                className="w-6 h-6 rounded-lg hover:bg-black/5 dark:hover:bg-white/10 flex items-center justify-center text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <p className="text-xs text-zinc-500 dark:text-zinc-400">
+              输入标签名称，将一次性为所选的 {selectedDocIds.size} 份文档批量附加该标签分类：
+            </p>
+
+            {/* 输入标签 */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  placeholder="如: 重点攻坚、深度学习、考研资料..."
+                  value={batchTagInput}
+                  onChange={(e) => setBatchTagInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault()
+                      handleBatchAddTag(batchTagInput)
+                    }
+                  }}
+                  autoFocus
+                  className="flex-1 px-3 py-2 text-xs bg-[#F2F2F7] dark:bg-white/[0.04] border border-black/[0.04] dark:border-white/[0.08] text-zinc-900 dark:text-zinc-100 rounded-xl focus:outline-none focus:ring-1 focus:ring-purple-500"
+                />
+                <button
+                  onClick={() => handleBatchAddTag(batchTagInput)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white transition active:scale-95"
+                >
+                  添加打标
+                </button>
+              </div>
+            </div>
+
+            {/* 快速选用已有标签 */}
+            {allTags.length > 0 && (
+              <div className="space-y-1.5 pt-2">
+                <label className="text-[11px] font-semibold text-zinc-400">点击已有标签快速批量附加:</label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {allTags.map((t) => (
+                    <button
+                      key={t}
+                      onClick={() => handleBatchAddTag(t)}
+                      className="px-2.5 py-1 rounded-lg text-xs bg-black/[0.03] dark:bg-white/[0.05] hover:bg-purple-500/15 text-zinc-700 dark:text-zinc-300 hover:text-purple-600 dark:hover:text-purple-300 border border-black/[0.04] dark:border-white/[0.06] transition"
+                    >
+                      + #{t}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="pt-2 flex justify-end">
+              <button
+                onClick={() => setBatchTagModalOpen(false)}
                 className="px-4 py-1.5 rounded-xl text-xs font-semibold bg-black/[0.05] dark:bg-white/[0.08] hover:bg-black/[0.08] text-zinc-700 dark:text-zinc-200 transition"
               >
                 完成

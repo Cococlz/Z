@@ -128,3 +128,21 @@ class TaskStatusOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class RenameDocumentRequest(BaseModel):
+    name: str
+
+
+class BatchDeleteRequest(BaseModel):
+    document_ids: list[str]
+
+
+class BatchTagsRequest(BaseModel):
+    document_ids: list[str]
+    add_tags: list[str] = []
+    remove_tags: list[str] = []
+
+
+class ExportSelectedNotesRequest(BaseModel):
+    document_ids: list[str]
