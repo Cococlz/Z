@@ -75,6 +75,13 @@ def _migrate_db(engine) -> None:
             if "tags" not in doc_cols:
                 cursor.execute("ALTER TABLE documents ADD COLUMN tags TEXT DEFAULT '[]' NOT NULL")
                 conn.connection.commit()
+
+            # 检查 annotations 表是否包含自定义标签 tags 字段
+            cursor.execute("PRAGMA table_info(annotations)")
+            anno_cols = {col[1] for col in cursor.fetchall()}
+            if "tags" not in anno_cols:
+                cursor.execute("ALTER TABLE annotations ADD COLUMN tags TEXT DEFAULT '[]' NOT NULL")
+                conn.connection.commit()
         except Exception as e:
             # 表可能尚不存在，create_all 会负责创建
             pass

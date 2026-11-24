@@ -32,12 +32,14 @@ class CreateAnnotationRequest(BaseModel):
     page_index: int = 0
     selected_text: str
     color: str = "yellow"  # yellow | green | purple | blue
+    tags: Optional[list[str]] = []
     note: Optional[str] = None
     ai_insight: Optional[str] = None
 
 
 class UpdateAnnotationRequest(BaseModel):
     color: Optional[str] = None
+    tags: Optional[list[str]] = None
     note: Optional[str] = None
 
 
@@ -288,20 +290,25 @@ def get_document_annotations(doc_id: str, db: Session = Depends(get_db)):
         .order_by(Annotation.page_index.asc(), Annotation.created_at.asc())
         .all()
     )
-    return [
-        {
+    result = []
+    for a in notes:
+        try:
+            parsed_tags = json.loads(a.tags) if a.tags else []
+        except Exception:
+            parsed_tags = []
+        result.append({
             "id": a.id,
             "document_id": a.document_id,
             "page_index": a.page_index,
             "selected_text": a.selected_text,
             "color": a.color,
+            "tags": parsed_tags,
             "note": a.note,
             "ai_insight": a.ai_insight,
             "created_at": a.created_at.isoformat() if a.created_at else None,
             "updated_at": a.updated_at.isoformat() if a.updated_at else None,
-        }
-        for a in notes
-    ]
+        })
+    return result
 
 
 @router.post("/annotations")
@@ -311,11 +318,13 @@ def create_annotation(req: CreateAnnotationRequest, db: Session = Depends(get_db
     if not doc:
         raise HTTPException(status_code=404, detail="文档未找到")
 
+    clean_tags = [t.strip().lstrip("#") for t in (req.tags or []) if t.strip()]
     anno = Annotation(
         document_id=req.document_id,
         page_index=req.page_index,
         selected_text=req.selected_text.strip(),
         color=req.color,
+        tags=json.dumps(clean_tags, ensure_ascii=False),
         note=req.note.strip() if req.note else None,
         ai_insight=req.ai_insight.strip() if req.ai_insight else None,
     )
@@ -330,6 +339,7 @@ def create_annotation(req: CreateAnnotationRequest, db: Session = Depends(get_db
             "page_index": anno.page_index,
             "selected_text": anno.selected_text,
             "color": anno.color,
+            "tags": clean_tags,
             "note": anno.note,
             "ai_insight": anno.ai_insight,
             "created_at": anno.created_at.isoformat() if anno.created_at else None,
@@ -339,13 +349,16 @@ def create_annotation(req: CreateAnnotationRequest, db: Session = Depends(get_db
 
 @router.put("/annotations/{annotation_id}")
 def update_annotation(annotation_id: str, req: UpdateAnnotationRequest, db: Session = Depends(get_db)):
-    """修改高亮批注笔记内容或更换颜色"""
+    """修改高亮批注笔记内容、标签或更换颜色"""
     anno = db.query(Annotation).filter(Annotation.id == annotation_id).first()
     if not anno:
         raise HTTPException(status_code=404, detail="批注未找到")
 
     if req.color is not None:
         anno.color = req.color
+    if req.tags is not None:
+        clean_tags = [t.strip().lstrip("#") for t in req.tags if t.strip()]
+        anno.tags = json.dumps(clean_tags, ensure_ascii=False)
     if req.note is not None:
         anno.note = req.note.strip() if req.note else None
 
@@ -397,7 +410,14 @@ def export_annotations_markdown(doc_id: str, db: Session = Depends(get_db)):
             lines.append(f"\n## 第 {current_page + 1} 页摘录\n")
 
         emoji = color_emoji.get(a.color, "🟡")
-        lines.append(f"> {emoji} **原文摘录**：{a.selected_text}\n")
+        tag_str = ""
+        try:
+            ts = json.loads(a.tags) if a.tags else []
+            if ts:
+                tag_str = " " + " ".join([f"#{t}" for t in ts])
+        except Exception:
+            pass
+        lines.append(f"> {emoji} **原文摘录**{tag_str}：{a.selected_text}\n")
         if a.note:
             lines.append(f"✍️ **我的思考笔记**：{a.note}\n")
         if a.ai_insight:
@@ -450,6 +470,12 @@ async def synthesize_notes_stream(doc_id: str, db: Session = Depends(get_db)):
         out = [f"### {title} (共 {len(items)} 处)"]
         for idx, a in enumerate(items, 1):
             line = f"{idx}. [第 {a.page_index + 1} 页] 原文：「{a.selected_text}」"
+            try:
+                ts = json.loads(a.tags) if a.tags else []
+                if ts:
+                    line += f" [标签: {', '.join(ts)}]"
+            except Exception:
+                pass
             if a.note:
                 line += f"\n   ✍️ 个人思考/批注：{a.note}"
             if a.ai_insight:

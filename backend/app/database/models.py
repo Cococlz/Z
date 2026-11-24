@@ -160,6 +160,7 @@ class Annotation(Base):
     page_index = Column(Integer, nullable=False, default=0)
     selected_text = Column(Text, nullable=False)
     color = Column(String, default="yellow")   # yellow | green | purple | blue
+    tags = Column(Text, default="[]", nullable=False)        # 自定义知识标签列表 JSON
     note = Column(Text, nullable=True)         # 个人思考与批注
     ai_insight = Column(Text, nullable=True)    # 关联的 AI 解读/翻译
     created_at = Column(DateTime, default=_now)

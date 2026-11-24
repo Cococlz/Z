@@ -23,6 +23,7 @@ import {
   Download,
   Type,
   Search,
+  Tag,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
@@ -111,6 +112,7 @@ export interface AnnotationItem {
   page_index: number
   selected_text: string
   color: HighlightColor
+  tags?: string[]
   note?: string | null
   ai_insight?: string | null
   created_at?: string
@@ -395,13 +397,25 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [annotations, setAnnotations] = useState<AnnotationItem[]>([])
   const [activeAnnotation, setActiveAnnotation] = useState<AnnotationItem | null>(null)
   const [editingNoteText, setEditingNoteText] = useState('')
+  const [editingTags, setEditingTags] = useState<string[]>([])
+  const [tagInputText, setTagInputText] = useState('')
   const [savingNote, setSavingNote] = useState(false)
   const [savedAiToNote, setSavedAiToNote] = useState(false)
   const [toastMsg, setToastMsg] = useState<string | null>(null)
 
-  // 四色分类过滤与划线平滑滚动脉冲聚焦
+  // 四色分类与自定义标签过滤及划线平滑滚动脉冲聚焦
   const [noteFilterColor, setNoteFilterColor] = useState<HighlightColor | 'all'>('all')
+  const [selectedTag, setSelectedTag] = useState<string | null>(null)
   const [pulsingAnnoId, setPulsingAnnoId] = useState<string | null>(null)
+
+  // 当打开弹窗时同步标签与批注内容
+  useEffect(() => {
+    if (activeAnnotation) {
+      setEditingNoteText(activeAnnotation.note || '')
+      setEditingTags(activeAnnotation.tags || [])
+      setTagInputText('')
+    }
+  }, [activeAnnotation?.id])
 
   // AI 深度串联解读全景报告状态
   const [synthesizing, setSynthesizing] = useState(false)
@@ -492,16 +506,41 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }
 
-  // 计算四色标注数量统计与分类过滤
+  // 计算四色标注与自定义标签数量统计与多维过滤
   const yellowCount = useMemo(() => annotations.filter((a) => a.color === 'yellow').length, [annotations])
   const greenCount = useMemo(() => annotations.filter((a) => a.color === 'green').length, [annotations])
   const purpleCount = useMemo(() => annotations.filter((a) => a.color === 'purple').length, [annotations])
   const blueCount = useMemo(() => annotations.filter((a) => a.color === 'blue').length, [annotations])
 
+  const docTags = useMemo(() => {
+    const set = new Set<string>()
+    annotations.forEach((a) => {
+      (a.tags || []).forEach((t) => {
+        const clean = t.trim()
+        if (clean) set.add(clean)
+      })
+    })
+    return Array.from(set)
+  }, [annotations])
+
+  const tagCounts = useMemo(() => {
+    const map: Record<string, number> = {}
+    annotations.forEach((a) => {
+      (a.tags || []).forEach((t) => {
+        const clean = t.trim()
+        if (clean) map[clean] = (map[clean] || 0) + 1
+      })
+    })
+    return map
+  }, [annotations])
+
   const filteredAnnotations = useMemo(() => {
-    if (noteFilterColor === 'all') return annotations
-    return annotations.filter((a) => a.color === noteFilterColor)
-  }, [annotations, noteFilterColor])
+    return annotations.filter((a) => {
+      const matchColor = noteFilterColor === 'all' || a.color === noteFilterColor
+      const matchTag = !selectedTag || (a.tags && a.tags.includes(selectedTag))
+      return matchColor && matchTag
+    })
+  }, [annotations, noteFilterColor, selectedTag])
 
   useEffect(() => {
     if (selectedDocId) {
@@ -825,7 +864,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }
 
-  // 3. 修改批注笔记
+  // 3. 修改批注笔记与自定义标签
   const handleUpdateAnnotationNote = async () => {
     if (!activeAnnotation || !backendUrl) return
     setSavingNote(true)
@@ -836,14 +875,19 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         body: JSON.stringify({
           note: editingNoteText,
           color: activeAnnotation.color,
+          tags: editingTags,
         }),
       })
       if (resp.ok) {
         setAnnotations((prev) =>
-          prev.map((a) => (a.id === activeAnnotation.id ? { ...a, note: editingNoteText, color: activeAnnotation.color } : a))
+          prev.map((a) =>
+            a.id === activeAnnotation.id
+              ? { ...a, note: editingNoteText, color: activeAnnotation.color, tags: editingTags }
+              : a
+          )
         )
-        setActiveAnnotation((prev) => (prev ? { ...prev, note: editingNoteText } : null))
-        showToast('批注笔记已保存')
+        setActiveAnnotation(null)
+        showToast('批注与标签已保存')
       }
     } catch (e) {
       console.error('更新笔记失败', e)
@@ -2455,39 +2499,75 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
                   {/* 四色语义化分段过滤控制器 */}
                   {annotations.length > 0 && (
-                    <div className="flex items-center space-x-1 overflow-x-auto pb-0.5 text-[11px] font-medium">
-                      <button
-                        onClick={() => setNoteFilterColor('all')}
-                        className={`px-2.5 py-1 rounded-xl transition-all shrink-0 ${
-                          noteFilterColor === 'all'
-                            ? 'bg-purple-600 text-white font-bold shadow-2xs'
-                            : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
-                        }`}
-                      >
-                        全部 ({annotations.length})
-                      </button>
+                    <div className="space-y-1.5">
+                      <div className="flex items-center space-x-1 overflow-x-auto pb-0.5 text-[11px] font-medium no-scrollbar">
+                        <button
+                          onClick={() => setNoteFilterColor('all')}
+                          className={`px-2.5 py-1 rounded-xl transition-all shrink-0 ${
+                            noteFilterColor === 'all'
+                              ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                              : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
+                          }`}
+                        >
+                          全部 ({annotations.length})
+                        </button>
 
-                      {(['yellow', 'green', 'purple', 'blue'] as HighlightColor[]).map((c) => {
-                        const meta = HIGHLIGHT_SEMANTICS[c]
-                        const count = annotations.filter((a) => a.color === c).length
-                        const active = noteFilterColor === c
-                        return (
+                        {(['yellow', 'green', 'purple', 'blue'] as HighlightColor[]).map((c) => {
+                          const meta = HIGHLIGHT_SEMANTICS[c]
+                          const count = annotations.filter((a) => a.color === c).length
+                          const active = noteFilterColor === c
+                          return (
+                            <button
+                              key={c}
+                              onClick={() => setNoteFilterColor(c)}
+                              className={`px-2 py-1 rounded-xl transition-all shrink-0 flex items-center space-x-1 ${
+                                active
+                                  ? `${meta.chip} font-bold shadow-2xs ring-1 ring-current`
+                                  : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
+                              }`}
+                              title={meta.desc}
+                            >
+                              <span>{meta.emoji}</span>
+                              <span>{meta.label}</span>
+                              <span className="opacity-70 font-mono text-[10px]">({count})</span>
+                            </button>
+                          )
+                        })}
+                      </div>
+
+                      {/* 仅当存在自定义标签时，渲染轻量级标签过滤栏（精简而实用，绝无多余冗余） */}
+                      {docTags.length > 0 && (
+                        <div className="flex items-center space-x-1.5 overflow-x-auto pb-0.5 text-[10px] font-medium no-scrollbar pt-0.5 border-t border-black/[0.04] dark:border-white/[0.04]">
+                          <span className="text-[10px] opacity-40 shrink-0 font-medium">标签:</span>
                           <button
-                            key={c}
-                            onClick={() => setNoteFilterColor(c)}
-                            className={`px-2 py-1 rounded-xl transition-all shrink-0 flex items-center space-x-1 ${
-                              active
-                                ? `${meta.chip} font-bold shadow-2xs ring-1 ring-current`
-                                : 'bg-black/5 dark:bg-white/5 opacity-70 hover:opacity-100 hover:bg-black/10 dark:hover:bg-white/10'
+                            onClick={() => setSelectedTag(null)}
+                            className={`px-2 py-0.5 rounded-lg transition-all shrink-0 ${
+                              selectedTag === null
+                                ? 'bg-purple-600/15 text-purple-700 dark:text-purple-300 font-bold border border-purple-500/30'
+                                : 'bg-black/5 dark:bg-white/5 opacity-60 hover:opacity-100'
                             }`}
-                            title={meta.desc}
                           >
-                            <span>{meta.emoji}</span>
-                            <span>{meta.label}</span>
-                            <span className="opacity-70 font-mono text-[10px]">({count})</span>
+                            全部
                           </button>
-                        )
-                      })}
+                          {docTags.map((tag) => {
+                            const isSelected = selectedTag === tag
+                            return (
+                              <button
+                                key={tag}
+                                onClick={() => setSelectedTag(isSelected ? null : tag)}
+                                className={`px-2 py-0.5 rounded-lg transition-all shrink-0 flex items-center space-x-0.5 ${
+                                  isSelected
+                                    ? 'bg-purple-600 text-white font-bold shadow-2xs'
+                                    : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20 hover:bg-purple-500/20'
+                                }`}
+                              >
+                                <span>#{tag}</span>
+                                <span className="opacity-70 font-mono text-[9px]">({tagCounts[tag] || 0})</span>
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -2509,12 +2589,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       <div className="w-8 h-8 rounded-2xl bg-black/5 dark:bg-white/5 flex items-center justify-center opacity-60">
                         <Bookmark className="w-4 h-4" />
                       </div>
-                      <p className="text-xs">该分类下暂无划线标注</p>
+                      <p className="text-xs">
+                        {selectedTag ? `标签 #${selectedTag} 下暂无对应划线` : '该分类下暂无划线标注'}
+                      </p>
                       <button
-                        onClick={() => setNoteFilterColor('all')}
+                        onClick={() => {
+                          setNoteFilterColor('all')
+                          setSelectedTag(null)
+                        }}
                         className="text-[11px] text-purple-600 dark:text-purple-400 underline font-medium"
                       >
-                        查看全部划线
+                        重置所有筛选
                       </button>
                     </div>
                   )
@@ -2529,11 +2614,32 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           className={`${themeStyles.asideNoteCard} ${meta.border} ${meta.bgTint} rounded-2xl p-3 border space-y-2.5 transition-all group hover:shadow-xs`}
                         >
                           <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-1.5">
+                            <div className="flex items-center space-x-1.5 flex-wrap gap-y-1">
                               <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold border flex items-center space-x-1 ${meta.chip}`}>
                                 <span>{meta.emoji}</span>
                                 <span>{meta.label} · P.{a.page_index + 1}</span>
                               </span>
+                              {a.tags && a.tags.length > 0 && (
+                                <div className="flex items-center space-x-1">
+                                  {a.tags.map((tag) => (
+                                    <button
+                                      key={tag}
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        setSelectedTag(selectedTag === tag ? null : tag)
+                                      }}
+                                      className={`text-[9px] px-1.5 py-0.2 rounded-md transition-colors ${
+                                        selectedTag === tag
+                                          ? 'bg-purple-600 text-white font-bold'
+                                          : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 border border-purple-500/20'
+                                      }`}
+                                      title={`点击筛选 #${tag}`}
+                                    >
+                                      #{tag}
+                                    </button>
+                                  ))}
+                                </div>
+                              )}
                               <span className="text-[10px] opacity-60 font-mono">
                                 {a.created_at ? new Date(a.created_at).toLocaleDateString() : ''}
                               </span>
@@ -2957,6 +3063,69 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       c === 'yellow' ? 'bg-amber-400' : c === 'green' ? 'bg-emerald-400' : c === 'purple' ? 'bg-purple-400' : 'bg-blue-400'
                     } ${activeAnnotation.color === c ? 'ring-2 ring-purple-500 scale-110' : 'hover:scale-105'}`}
                   />
+                ))}
+              </div>
+            </div>
+
+            {/* 自定义知识标签（精炼实用，回车即加） */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between text-xs opacity-75">
+                <label className="font-semibold flex items-center space-x-1">
+                  <Tag className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <span>知识标签：</span>
+                </label>
+                <span className="text-[10px] opacity-60">输入标签后按回车添加</span>
+              </div>
+
+              {/* 标签小药丸与内联输入框 */}
+              <div className={`p-2 rounded-2xl border flex flex-wrap gap-1.5 items-center min-h-[38px] ${themeStyles.modalInput}`}>
+                {editingTags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-xs font-medium bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30"
+                  >
+                    <span>#{tag}</span>
+                    <button
+                      type="button"
+                      onClick={() => setEditingTags((prev) => prev.filter((t) => t !== tag))}
+                      className="hover:text-rose-500 ml-0.5 transition-colors"
+                      title="移除标签"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
+                <input
+                  type="text"
+                  value={tagInputText}
+                  onChange={(e) => setTagInputText(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ',') {
+                      e.preventDefault()
+                      const val = tagInputText.trim().replace(/^#/, '')
+                      if (val && !editingTags.includes(val)) {
+                        setEditingTags((prev) => [...prev, val])
+                      }
+                      setTagInputText('')
+                    }
+                  }}
+                  placeholder={editingTags.length === 0 ? "输入标签名按回车，如: 考点、面试..." : "添加更多..."}
+                  className="flex-1 min-w-[120px] bg-transparent text-xs px-1 py-0.5 focus:outline-none placeholder:opacity-50"
+                />
+              </div>
+
+              {/* 常用建议药丸（一键点击追加） */}
+              <div className="flex items-center space-x-1.5 text-[10px] opacity-70">
+                <span className="shrink-0 opacity-60">常用建议:</span>
+                {['考点', '面试', '实操', '概念'].filter((p) => !editingTags.includes(p)).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setEditingTags((prev) => [...prev, preset])}
+                    className="px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/5 hover:bg-purple-500/15 hover:text-purple-600 dark:hover:text-purple-300 transition-colors"
+                  >
+                    +{preset}
+                  </button>
                 ))}
               </div>
             </div>
