@@ -176,11 +176,14 @@ const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'notes', label: '划线笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
 ]
 
-// 智能增强型 Markdown 渲染引擎：解决原生 prose 样式缺失导致的大纲平铺无层级与重点淹没问题
+// 智能增强型 Markdown 渲染引擎：解决原生 prose 样式缺失导致的大纲平铺无层级与重点淹没问题，并深度支持全景划线高亮
 const CustomMarkdownRenderer: React.FC<{
   content: string
   themeStyles: any
-}> = ({ content, themeStyles }) => {
+  annotations?: AnnotationItem[]
+  onAnnoClick?: (anno: AnnotationItem) => void
+  pulsingAnnoId?: string | null
+}> = ({ content, themeStyles, annotations = [], onAnnoClick, pulsingAnnoId }) => {
   // 语法预处理：确保不论模型输出是否带有 Markdown # 标记，都能呈现鲜明的思维导图层级
   const processed = useMemo(() => {
     if (!content) return ''
@@ -219,14 +222,80 @@ const CustomMarkdownRenderer: React.FC<{
     return result.join('\n')
   }, [content])
 
+  // 划线高亮文本解析渲染器
+  const renderHighlightedText = (text: string) => {
+    if (!text || !annotations || annotations.length === 0) return text
+
+    const targets: { text: string; anno: AnnotationItem }[] = []
+    annotations.forEach((a) => {
+      if (a.selected_text && text.includes(a.selected_text)) {
+        targets.push({ text: a.selected_text, anno: a })
+      }
+    })
+
+    if (targets.length === 0) return text
+    targets.sort((a, b) => b.text.length - a.text.length)
+
+    const escapeRegex = (s: string) => s.replace(/[-/\\^$*+?.()|[\]{}]/g, '\\$&')
+    const pattern = new RegExp(`(${targets.map((t) => escapeRegex(t.text)).join('|')})`, 'g')
+
+    const parts = text.split(pattern)
+    return parts.map((part, idx) => {
+      const matched = targets.find((t) => t.text === part)
+      if (matched) {
+        const meta = HIGHLIGHT_SEMANTICS[matched.anno.color] || HIGHLIGHT_SEMANTICS.yellow
+        const isPulsing = pulsingAnnoId === matched.anno.id
+        const colorCls = {
+          yellow: 'bg-amber-200/90 text-amber-950 border-b-2 border-amber-400 dark:bg-amber-400/35 dark:text-amber-100 dark:border-amber-400',
+          green: 'bg-emerald-200/90 text-emerald-950 border-b-2 border-emerald-400 dark:bg-emerald-400/35 dark:text-emerald-100 dark:border-emerald-400',
+          purple: 'bg-purple-200/90 text-purple-950 border-b-2 border-purple-400 dark:bg-purple-400/35 dark:text-purple-100 dark:border-purple-400',
+          blue: 'bg-blue-200/90 text-blue-950 border-b-2 border-blue-400 dark:bg-blue-400/35 dark:text-blue-100 dark:border-blue-400',
+        }[matched.anno.color] || 'bg-amber-200/90 border-b-2 border-amber-400'
+
+        return (
+          <mark
+            key={`aside_anno_${matched.anno.id}_${idx}`}
+            id={`zhiyue-aside-anno-${matched.anno.id}`}
+            onClick={(e) => {
+              e.stopPropagation()
+              onAnnoClick?.(matched.anno)
+            }}
+            className={`${colorCls} px-1 py-0.5 rounded-xs font-normal cursor-pointer transition-all duration-300 shadow-2xs select-text ${
+              isPulsing
+                ? `ring-4 ${meta.ring} ring-offset-2 ring-offset-black shadow-2xl scale-[1.03] animate-pulse inline-block z-10 font-medium`
+                : ''
+            }`}
+            title={matched.anno.note ? `✍️ [${meta.label}] 批注: ${matched.anno.note}` : `[${meta.label}] 点击编辑/查看批注`}
+          >
+            {part}
+          </mark>
+        )
+      }
+      return part
+    })
+  }
+
+  const highlightNode = (node: React.ReactNode): React.ReactNode => {
+    if (typeof node === 'string') {
+      return renderHighlightedText(node)
+    }
+    if (Array.isArray(node)) {
+      return React.Children.map(node, (c) => highlightNode(c))
+    }
+    if (React.isValidElement(node) && (node.props as any)?.children) {
+      return React.cloneElement(node, {}, highlightNode((node.props as any).children))
+    }
+    return node
+  }
+
   return (
-    <div className="select-text cursor-text">
+    <div className={`select-text cursor-text ${themeStyles.selection || ''}`}>
       <ReactMarkdown
         components={{
           h1: ({ children }) => (
             <div className={`mt-2 mb-4 p-3 rounded-2xl border font-bold text-sm sm:text-base flex items-center space-x-2.5 shadow-2xs ${themeStyles.mdH1 || ''}`}>
               <span className="w-2.5 h-4.5 rounded-full bg-purple-500 shrink-0" />
-              <span className="flex-1 tracking-tight">{children}</span>
+              <span className="flex-1 tracking-tight">{highlightNode(children)}</span>
             </div>
           ),
           h2: ({ children }) => {
@@ -239,19 +308,19 @@ const CustomMarkdownRenderer: React.FC<{
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 shadow-2xs ${themeStyles.mdH2Badge || ''}`}>
                   {badge}
                 </span>
-                <span className="tracking-tight flex-1">{title}</span>
+                <span className="tracking-tight flex-1">{highlightNode(title)}</span>
               </div>
             )
           },
           h3: ({ children }) => (
             <div className={`mt-3.5 mb-1.5 font-bold text-xs flex items-center space-x-1.5 ${themeStyles.mdH3 || ''}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
-              <span>{children}</span>
+              <span>{highlightNode(children)}</span>
             </div>
           ),
           strong: ({ children }) => (
             <strong className={`font-bold px-1.5 py-0.5 rounded-md inline-block shadow-2xs ${themeStyles.mdStrong || ''}`}>
-              {children}
+              {highlightNode(children)}
             </strong>
           ),
           code: ({ children }) => (
@@ -272,17 +341,17 @@ const CustomMarkdownRenderer: React.FC<{
           li: ({ children }) => (
             <li className={`text-xs leading-relaxed flex items-start space-x-2 my-1 ${themeStyles.mdLi || ''}`}>
               <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 shadow-2xs ${themeStyles.mdBullet || 'bg-purple-500'}`} />
-              <div className="flex-1 min-w-0">{children}</div>
+              <div className="flex-1 min-w-0">{highlightNode(children)}</div>
             </li>
           ),
           p: ({ children }) => (
             <p className="text-xs leading-relaxed my-1.5">
-              {children}
+              {highlightNode(children)}
             </p>
           ),
           blockquote: ({ children }) => (
             <blockquote className="border-l-2 border-purple-400 pl-3 py-1 my-2 text-xs italic opacity-85">
-              {children}
+              {highlightNode(children)}
             </blockquote>
           ),
         }}
@@ -824,18 +893,40 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     }
   }
 
-  // 6. 正文划线精准定位跳转与脉冲高亮动画
+  // 6. 正文与伴读划线精准定位跳转与脉冲高亮动画
   const handleJumpToAnnotation = (a: AnnotationItem) => {
+    // 优先检查伴读面板或当前正文视口中是否已存在该划线元素
+    const asideEl = document.getElementById(`zhiyue-aside-anno-${a.id}`)
+    const articleEl = document.getElementById(`zhiyue-anno-${a.id}`)
+
+    if (asideEl) {
+      asideEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setPulsingAnnoId(a.id)
+      setTimeout(() => setPulsingAnnoId(null), 2200)
+      const meta = HIGHLIGHT_SEMANTICS[a.color] || HIGHLIGHT_SEMANTICS.yellow
+      showToast(`🎯 已定位至伴读分析「${meta.label}」划线处`)
+      return
+    }
+
+    if (articleEl) {
+      articleEl.scrollIntoView({ behavior: 'smooth', block: 'center' })
+      setPulsingAnnoId(a.id)
+      setTimeout(() => setPulsingAnnoId(null), 2200)
+      const meta = HIGHLIGHT_SEMANTICS[a.color] || HIGHLIGHT_SEMANTICS.yellow
+      showToast(`🎯 已定位至第 ${a.page_index + 1} 页「${meta.label}」划线处`)
+      return
+    }
+
     if (a.page_index !== currentPageIdx) {
       setCurrentPageIdx(a.page_index)
     }
     setPulsingAnnoId(a.id)
     setTimeout(() => {
-      const el = document.getElementById(`zhiyue-anno-${a.id}`)
+      const el = document.getElementById(`zhiyue-anno-${a.id}`) || document.getElementById(`zhiyue-aside-anno-${a.id}`)
       if (el) {
         el.scrollIntoView({ behavior: 'smooth', block: 'center' })
       }
-    }, 120)
+    }, 150)
     setTimeout(() => {
       setPulsingAnnoId(null)
     }, 2200)
@@ -1432,7 +1523,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       headerSection: 'bg-white/80 border-zinc-100 text-zinc-500',
       headerTitle: 'text-zinc-800',
       article: 'text-zinc-800',
-      selection: 'selection:bg-purple-100 selection:text-purple-900',
+      selection: 'selection:bg-purple-200 selection:text-purple-950',
       footerBorder: 'border-zinc-100',
       prevBtn: 'bg-zinc-100 hover:bg-zinc-200 text-zinc-700',
       nextBtn: 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs',
@@ -1454,7 +1545,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideTabTrack: 'bg-zinc-200/70',
       asideTabActive: 'bg-white text-zinc-900 shadow-sm',
       asideTabInactive: 'text-zinc-500 hover:text-zinc-800',
-      asideContent: 'text-zinc-800 selection:bg-purple-200 selection:text-purple-900',
+      asideContent: 'text-zinc-800 selection:bg-purple-200 selection:text-purple-950',
       asideMarkdown: 'prose-zinc text-zinc-800',
       asideDivider: 'border-zinc-100 text-zinc-700',
       asideNoteCard: 'bg-[#F2F2F7]/60 hover:bg-[#F2F2F7] border-black/[0.04]',
@@ -1572,7 +1663,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       headerSection: 'bg-[#1C1C1E]/90 border-white/[0.08] text-[#8E8E93]',
       sectionHeaderTitle: 'text-[#E5E5EA]',
       article: 'text-[#E5E5EA]',
-      selection: 'selection:bg-[#3A3A3C] selection:text-white',
+      selection: 'selection:bg-purple-600/50 selection:text-white',
       footerBorder: 'border-white/[0.08]',
       prevBtn: 'bg-[#2C2C2E] hover:bg-[#3A3A3C] text-[#E5E5EA]',
       nextBtn: 'bg-purple-600 hover:bg-purple-700 text-white shadow-xs',
@@ -1594,7 +1685,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       asideTabTrack: 'bg-[#2C2C2E]',
       asideTabActive: 'bg-[#3A3A3C] text-white shadow-sm',
       asideTabInactive: 'text-[#8E8E93] hover:text-zinc-200',
-      asideContent: 'text-[#E5E5EA] selection:bg-[#3A3A3C] selection:text-white',
+      asideContent: 'text-[#E5E5EA] selection:bg-purple-600/50 selection:text-white',
       asideMarkdown: 'prose-invert text-[#E5E5EA]',
       asideDivider: 'border-white/[0.08] text-[#E5E5EA]',
       asideNoteCard: 'bg-[#242426]/70 hover:bg-[#2C2C2E] border-white/[0.06]',
@@ -1647,7 +1738,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const fontFamilyClass = appearance.fontFamily === 'serif' ? 'font-serif' : 'font-sans'
 
   return (
-    <div className={`flex-1 flex flex-col ${themeStyles.pageBg} h-screen overflow-hidden selection:bg-purple-100 relative transition-colors duration-200`}>
+    <div className={`flex-1 flex flex-col ${themeStyles.pageBg} h-screen overflow-hidden ${themeStyles.selection} relative transition-colors duration-200`}>
       
       {/* 顶部毛玻璃导航条：Apple HIG 三段式极简架构 */}
       <header className={`h-14 backdrop-blur-xl border-b px-6 flex items-center justify-between shrink-0 z-10 transition-colors duration-200 ${themeStyles.header}`}>
@@ -2575,7 +2666,16 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     </span>
                   </div>
                 )}
-                <CustomMarkdownRenderer content={summaries[mode]} themeStyles={themeStyles} />
+                <CustomMarkdownRenderer
+                  content={summaries[mode]}
+                  themeStyles={themeStyles}
+                  annotations={annotations}
+                  onAnnoClick={(a) => {
+                    setActiveAnnotation(a)
+                    setEditingNoteText(a.note || '')
+                  }}
+                  pulsingAnnoId={pulsingAnnoId}
+                />
                 {generating && (
                   <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
                 )}
