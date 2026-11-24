@@ -13,6 +13,8 @@ process.env.VITE_PUBLIC = app.isPackaged
 
 let win: BrowserWindow | null = null
 let pyProcess: ChildProcess | null = null
+let isQuitting = false
+let isRestarting = false
 
 let backendConfig = {
   port: 0,
@@ -105,6 +107,22 @@ function startBackendService(): Promise<void> {
       backendConfig.ready = false
       if (!isHandshakeComplete) {
         reject(new Error(`Python process exited before ready, code: ${code}`))
+      } else if (!isQuitting && !isRestarting) {
+        // 自愈保活：如果应用仍在运行，1秒内自动拉起后端引擎并静默重连
+        isRestarting = true
+        console.log('[Electron] 后端服务异常离线，正在触发自愈机制重新拉起引擎...')
+        setTimeout(async () => {
+          if (isQuitting) return
+          try {
+            await startBackendService()
+            console.log(`[Electron] 后端自愈成功！新端口: ${backendConfig.port}`)
+            isRestarting = false
+            loadApp()
+          } catch (err) {
+            console.error('[Electron] 后端自动恢复失败:', err)
+            isRestarting = false
+          }
+        }, 1200)
       }
     })
 
@@ -349,10 +367,12 @@ app.whenReady().then(async () => {
 })
 
 app.on('before-quit', () => {
+  isQuitting = true
   stopBackendService()
 })
 
 app.on('window-all-closed', () => {
+  isQuitting = true
   stopBackendService()
   if (process.platform !== 'darwin') {
     app.quit()
