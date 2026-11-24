@@ -7,9 +7,13 @@ block_cipher = None
 
 backend_dir = Path.cwd().resolve()
 
+bundled_models_path = backend_dir / 'bundled_models'
+if not bundled_models_path.exists():
+    bundled_models_path.mkdir(parents=True, exist_ok=True)
+
 added_files = [
     (str(backend_dir / 'app'), 'app'),
-    (str(backend_dir / 'bundled_models'), 'bundled_models'),
+    (str(bundled_models_path), 'bundled_models'),
 ]
 
 a = Analysis(
