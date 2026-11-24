@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
@@ -135,16 +135,132 @@ function loadApp() {
   }
 }
 
+function getSavedBounds(): { width: number; height: number; x?: number; y?: number } {
+  try {
+    const file = path.join(app.getPath('userData'), 'window-bounds.json')
+    if (fs.existsSync(file)) {
+      const data = JSON.parse(fs.readFileSync(file, 'utf-8'))
+      if (typeof data.width === 'number' && typeof data.height === 'number') {
+        return data
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return { width: 1280, height: 860 }
+}
+
+let saveBoundsTimer: NodeJS.Timeout | null = null
+function queueSaveBounds() {
+  if (!win) return
+  if (saveBoundsTimer) clearTimeout(saveBoundsTimer)
+  saveBoundsTimer = setTimeout(() => {
+    try {
+      if (win && !win.isDestroyed() && !win.isMinimized() && !win.isFullScreen()) {
+        const bounds = win.getBounds()
+        const file = path.join(app.getPath('userData'), 'window-bounds.json')
+        fs.writeFileSync(file, JSON.stringify(bounds), 'utf-8')
+      }
+    } catch (e) {
+      // ignore
+    }
+  }, 500)
+}
+
+function setupAppMenu() {
+  const isMac = process.platform === 'darwin'
+  const template: Electron.MenuItemConstructorOptions[] = [
+    ...(isMac
+      ? [
+          {
+            label: '智阅 AI',
+            submenu: [
+              { role: 'about' as const, label: '关于 智阅 AI' },
+              { type: 'separator' as const },
+              { role: 'services' as const, label: '服务' },
+              { type: 'separator' as const },
+              { role: 'hide' as const, label: '隐藏 智阅 AI' },
+              { role: 'hideOthers' as const, label: '隐藏其他' },
+              { role: 'unhide' as const, label: '显示全部' },
+              { type: 'separator' as const },
+              { role: 'quit' as const, label: '退出 智阅 AI' },
+            ],
+          },
+        ]
+      : []),
+    {
+      label: '文件',
+      submenu: [
+        {
+          label: '导入文档...',
+          accelerator: 'CmdOrCtrl+O',
+          click: () => {
+            win?.webContents.send('menu-import-document')
+          },
+        },
+        { type: 'separator' as const },
+        isMac ? { role: 'close' as const, label: '关闭窗口' } : { role: 'quit' as const, label: '退出' },
+      ],
+    },
+    {
+      label: '编辑',
+      submenu: [
+        { role: 'undo' as const, label: '撤销' },
+        { role: 'redo' as const, label: '重做' },
+        { type: 'separator' as const },
+        { role: 'cut' as const, label: '剪切' },
+        { role: 'copy' as const, label: '复制' },
+        { role: 'paste' as const, label: '粘贴' },
+        { role: 'selectAll' as const, label: '全选' },
+      ],
+    },
+    {
+      label: '视图',
+      submenu: [
+        { role: 'reload' as const, label: '重新加载' },
+        { role: 'forceReload' as const, label: '强制重新加载' },
+        { role: 'toggleDevTools' as const, label: '切换开发者工具' },
+        { type: 'separator' as const },
+        { role: 'resetZoom' as const, label: '实际大小' },
+        { role: 'zoomIn' as const, label: '放大' },
+        { role: 'zoomOut' as const, label: '缩小' },
+        { type: 'separator' as const },
+        { role: 'togglefullscreen' as const, label: '切换全屏' },
+      ],
+    },
+    {
+      label: '窗口',
+      submenu: [
+        { role: 'minimize' as const, label: '最小化' },
+        { role: 'zoom' as const, label: '缩放' },
+        ...(isMac
+          ? [
+              { type: 'separator' as const },
+              { role: 'front' as const, label: '前置全部窗口' },
+              { type: 'separator' as const },
+              { role: 'window' as const, label: '窗口' },
+            ]
+          : [{ role: 'close' as const, label: '关闭' }]),
+      ],
+    },
+  ]
+  const menu = Menu.buildFromTemplate(template)
+  Menu.setApplicationMenu(menu)
+}
+
 function createWindow() {
+  const savedBounds = getSavedBounds()
   win = new BrowserWindow({
     title: '智阅 AI',
-    width: 1280,
-    height: 860,
+    width: savedBounds.width,
+    height: savedBounds.height,
+    x: savedBounds.x,
+    y: savedBounds.y,
     minWidth: 960,
     minHeight: 640,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 18, y: 18 },
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#1C1C1E',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
       contextIsolation: true,
@@ -153,6 +269,9 @@ function createWindow() {
       webSecurity: false, // 允许本地 file:// 协议自由请求本地 127.0.0.1 端口
     },
   })
+
+  win.on('resize', queueSaveBounds)
+  win.on('move', queueSaveBounds)
 }
 
 // IPC Handlers
@@ -192,6 +311,7 @@ ipcMain.handle('dialog:select-file', async (_, options) => {
 
 // App Lifecycle
 app.whenReady().then(async () => {
+  setupAppMenu()
   createWindow()
   try {
     await startBackendService()

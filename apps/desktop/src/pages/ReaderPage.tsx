@@ -28,6 +28,7 @@ import {
   Send,
   Brain,
   Maximize2,
+  Compass,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
@@ -579,26 +580,95 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [generating, setGenerating] = useState(false)
   const [streamError, setStreamError] = useState<string | null>(null)
 
-  // 伴读即时追问状态与多轮记忆
+  // 伴读即时追问状态、溯源微胶囊与文档本地记忆
+  interface CompanionCitation {
+    doc_id: string
+    chunk_index: number
+    page_number: number
+    section_title: string
+    score: number
+    text_preview: string
+  }
+
   interface CompanionChatMessage {
     id: string
     role: 'user' | 'assistant'
     content: string
     isStreaming?: boolean
+    citations?: CompanionCitation[]
   }
 
-  const [companionMessages, setCompanionMessages] = useState<CompanionChatMessage[]>([
-    {
-      id: 'init',
-      role: 'assistant',
-      content: '你好！我是您的**专属伴读 AI 助手**。\n\n针对当前正在阅读的文档，您有任何疑问、想深入探究原理或查看实际代码实现，欢迎在此随时向我追问。',
-    },
-  ])
+  const DEFAULT_COMPANION_MSG: CompanionChatMessage = {
+    id: 'init',
+    role: 'assistant',
+    content: '你好！我是您的**专属伴读 AI 助手**。\n\n针对当前正在阅读的文档，您有任何疑问、想深入探究原理或查看实际代码实现，欢迎在此随时向我追问。',
+  }
+
+  const [companionMessages, setCompanionMessages] = useState<CompanionChatMessage[]>([DEFAULT_COMPANION_MSG])
   const [companionInput, setCompanionInput] = useState('')
   const [companionGenerating, setCompanionGenerating] = useState(false)
   const [companionConvId, setCompanionConvId] = useState<string | null>(null)
   const [savedCompanionNoteIds, setSavedCompanionNoteIds] = useState<Set<string>>(new Set())
   const companionEndRef = useRef<HTMLDivElement>(null)
+
+  // 溯源与导图跳转的呼吸柔光高亮状态
+  const [pulsingTarget, setPulsingTarget] = useState<{ page: number; sectionTitle?: string } | null>(null)
+  const pulsingTimerRef = useRef<NodeJS.Timeout | null>(null)
+
+  const triggerPulsingGlow = (page: number, sectionTitle?: string) => {
+    if (pulsingTimerRef.current) {
+      clearTimeout(pulsingTimerRef.current)
+    }
+    setPulsingTarget({ page, sectionTitle })
+    pulsingTimerRef.current = setTimeout(() => {
+      setPulsingTarget(null)
+    }, 2200)
+  }
+
+  const handleJumpToCitation = (c: CompanionCitation) => {
+    const targetPage = Math.max(0, (c.page_number || 1) - 1)
+    setCurrentPageIdx(targetPage)
+    leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+    triggerPulsingGlow(targetPage, c.section_title)
+    showToast(`已定位至 P.${c.page_number || 1} 原文位置`)
+  }
+
+  // 按文档本地持久化读取伴读对话历史
+  useEffect(() => {
+    if (!selectedDocId) return
+    try {
+      const saved = localStorage.getItem(`zhiyue_companion_chat_${selectedDocId}`)
+      if (saved) {
+        const parsed = JSON.parse(saved)
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setCompanionMessages(parsed.map((m: any) => ({ ...m, isStreaming: false })))
+          return
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load companion chat history:', e)
+    }
+    setCompanionMessages([DEFAULT_COMPANION_MSG])
+    setCompanionConvId(null)
+  }, [selectedDocId])
+
+  // 当对话更新且非生成状态时，持久化保存至 localStorage
+  useEffect(() => {
+    if (!selectedDocId || companionGenerating) return
+    try {
+      if (
+        companionMessages.length > 1 ||
+        (companionMessages.length === 1 && companionMessages[0].id !== 'init')
+      ) {
+        localStorage.setItem(
+          `zhiyue_companion_chat_${selectedDocId}`,
+          JSON.stringify(companionMessages)
+        )
+      }
+    } catch (e) {
+      console.warn('Failed to save companion chat history:', e)
+    }
+  }, [companionMessages, selectedDocId, companionGenerating])
 
   useEffect(() => {
     if (mode === 'chat') {
@@ -658,7 +728,12 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             if (!rawData) continue
             try {
               const data = JSON.parse(rawData)
-              if (currentEvent === 'token') {
+              if (currentEvent === 'citations') {
+                const citationsList = Array.isArray(data) ? data : []
+                setCompanionMessages((prev) =>
+                  prev.map((m) => (m.id === assistantMsgId ? { ...m, citations: citationsList } : m))
+                )
+              } else if (currentEvent === 'token') {
                 fullContent += data
                 setCompanionMessages((prev) =>
                   prev.map((m) => (m.id === assistantMsgId ? { ...m, content: fullContent } : m))
@@ -1628,6 +1703,8 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           action,
           target_lang: action === 'translate' ? targetLangCode : undefined,
           context: currentPage?.content ? currentPage.content.slice(0, 300) : undefined,
+          doc_title: docContent?.name || undefined,
+          section_title: currentPage?.section_title || undefined,
         }),
       })
 
@@ -2537,12 +2614,21 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
             /* 视图 A: 精读排版视图（支持划词操作与 Apple Books 护眼主题） */
             <>
               {/* 页眉元信息 */}
-              <div className={`px-8 py-3.5 border-b flex items-center justify-between shrink-0 ${themeStyles.headerSection}`}>
+              <div className={`px-8 py-3.5 border-b flex items-center justify-between shrink-0 transition-all duration-700 ${themeStyles.headerSection} ${
+                pulsingTarget && pulsingTarget.page === currentPageIdx
+                  ? 'bg-blue-500/15 border-blue-500/40 shadow-[0_4px_20px_rgba(59,130,246,0.15)]'
+                  : ''
+              }`}>
                 <div className="flex items-center space-x-2 text-xs font-semibold">
-                  <FileText className="w-3.5 h-3.5 text-blue-500" />
-                  <span className={`truncate max-w-sm ${themeStyles.headerTitle}`}>
+                  <FileText className={`w-3.5 h-3.5 ${pulsingTarget && pulsingTarget.page === currentPageIdx ? 'text-blue-500 animate-bounce' : 'text-blue-500'}`} />
+                  <span className={`truncate max-w-sm ${themeStyles.headerTitle} ${pulsingTarget && pulsingTarget.page === currentPageIdx ? 'text-blue-600 dark:text-blue-400 font-bold' : ''}`}>
                     {currentPage?.section_title ? currentPage.section_title : `第 ${currentPage?.page_number || 1} 页`}
                   </span>
+                  {pulsingTarget && pulsingTarget.page === currentPageIdx && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] bg-blue-500 text-white font-medium shadow-xs animate-pulse">
+                      📍 溯源已定位
+                    </span>
+                  )}
                 </div>
                 <div className="flex items-center space-x-3 text-[11px] font-mono opacity-80">
                   <span>💡 划选文本即可呼出 AI 悬浮解读</span>
@@ -2570,7 +2656,11 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   </div>
                 ) : (
                   <div className="max-w-3xl mx-auto w-full">
-                    <article className={`max-w-none ${themeStyles.article} ${fontFamilyClass} ${fontSizeClass} ${lineHeightClass} select-text cursor-text`}>
+                    <article className={`max-w-none ${themeStyles.article} ${fontFamilyClass} ${fontSizeClass} ${lineHeightClass} select-text cursor-text transition-all duration-700 ${
+                      pulsingTarget && pulsingTarget.page === currentPageIdx
+                        ? 'ring-2 ring-blue-500/40 rounded-2xl p-5 bg-blue-500/[0.02] shadow-[0_0_35px_rgba(59,130,246,0.16)]'
+                        : ''
+                    }`}>
                       {renderStructuredContent(currentPage.content)}
                     </article>
 
@@ -2680,6 +2770,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       },
                     ])
                     setCompanionConvId(null)
+                    if (selectedDocId) {
+                      localStorage.removeItem(`zhiyue_companion_chat_${selectedDocId}`)
+                    }
+                    showToast('已开启新一轮伴读对话')
                   }}
                   className="px-2.5 py-1 rounded-full text-xs font-semibold bg-purple-500/15 text-purple-600 dark:text-purple-200 hover:bg-purple-500/25 active:scale-95 transition-all flex items-center space-x-1.5 border border-purple-500/20 dark:border-purple-400/30 shadow-2xs"
                   title="清空当前伴读对话历史"
@@ -3015,6 +3109,26 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                           <span className="inline-block w-1.5 h-3 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
                         )}
 
+                        {/* 溯源定位微胶囊 (Citations) */}
+                        {msg.role === 'assistant' && msg.citations && msg.citations.length > 0 && (
+                          <div className="pt-2 border-t border-black/[0.05] dark:border-white/[0.06] flex flex-wrap items-center gap-1.5">
+                            <span className="text-[10px] text-zinc-400 dark:text-zinc-500 font-medium mr-0.5 select-none">
+                              溯源原文:
+                            </span>
+                            {msg.citations.map((c, cIdx) => (
+                              <button
+                                key={cIdx}
+                                onClick={() => handleJumpToCitation(c)}
+                                className="inline-flex items-center space-x-1 px-2 py-0.5 rounded-lg text-[10px] font-medium bg-blue-500/10 hover:bg-blue-500/20 active:scale-95 text-blue-600 dark:text-blue-300 border border-blue-500/20 transition-all group"
+                                title={c.text_preview ? `P.${c.page_number || 1} 预览：\n${c.text_preview.slice(0, 100)}...` : undefined}
+                              >
+                                <Compass className="w-2.5 h-2.5 text-blue-500 group-hover:rotate-45 transition-transform" />
+                                <span>P.{c.page_number || 1}{c.section_title ? ` · ${c.section_title.slice(0, 10)}` : ''}</span>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+
                         {msg.role === 'assistant' && !msg.isStreaming && msg.id !== 'init' && (
                           <div className="flex items-center justify-end pt-1.5 border-t border-black/[0.04] dark:border-white/[0.06]">
                             <button
@@ -3191,6 +3305,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                       onNavigateToPage={(p) => {
                         setCurrentPageIdx(p)
                         leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+                        triggerPulsingGlow(p)
                       }}
                       onClose={() => {}}
                     />
@@ -3752,6 +3867,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
         onNavigateToPage={(p) => {
           setCurrentPageIdx(p)
           leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+          triggerPulsingGlow(p)
         }}
       />
 

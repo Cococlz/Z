@@ -48,6 +48,8 @@ class InlineActionRequest(BaseModel):
     action: str = "explain"  # explain | translate | summarize
     target_lang: Optional[str] = None  # zh-CN | en | ja | ko | fr | de | es | ru
     context: Optional[str] = None
+    doc_title: Optional[str] = None
+    section_title: Optional[str] = None
 
 
 class UpdateProgressRequest(BaseModel):
@@ -251,8 +253,15 @@ async def inline_action_stream(req: InlineActionRequest):
     }
     sys_prompt = action_prompts.get(req.action, action_prompts["explain"])
 
-    context_hint = f"\n所在文段上下文：\n{req.context}\n" if req.context else ""
-    user_prompt = f"{context_hint}选中划词文本：\n「{req.text}」\n\n请针对选中文本给出你的解读："
+    macro_parts = []
+    if req.doc_title:
+        macro_parts.append(f"所属文档：《{req.doc_title}》")
+    if req.section_title:
+        macro_parts.append(f"所在章节/标题：{req.section_title}")
+    macro_hint = f"【宏观文档语境】：{' · '.join(macro_parts)}\n" if macro_parts else ""
+
+    context_hint = f"【文段临近上下文】：\n{req.context}\n" if req.context else ""
+    user_prompt = f"{macro_hint}{context_hint}【选中划词文本】：\n「{req.text}」\n\n请针对选中文本给出你的解读："
 
     messages = [
         {"role": "system", "content": sys_prompt},
