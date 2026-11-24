@@ -26,9 +26,12 @@ import {
   Tag,
   MessageSquare,
   Send,
+  Brain,
+  Maximize2,
 } from 'lucide-react'
 import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
+import { MindmapModal } from '../components/MindmapModal'
 
 type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes' | 'chat'
 type ReadViewMode = 'extracted' | 'native'
@@ -429,6 +432,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const [synthesisModalOpen, setSynthesisModalOpen] = useState(false)
   const [synthesisError, setSynthesisError] = useState<string | null>(null)
   const [copiedSynthesis, setCopiedSynthesis] = useState(false)
+
+  // 知识思维导图画布状态
+  const [mindmapModalOpen, setMindmapModalOpen] = useState(false)
+  const [outlineSubView, setOutlineSubView] = useState<'list' | 'tree'>('list')
 
   const showToast = (msg: string) => {
     setToastMsg(msg)
@@ -1019,6 +1026,10 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           setSynthesisModalOpen(false)
           return
         }
+        if (mindmapModalOpen) {
+          setMindmapModalOpen(false)
+          return
+        }
         return
       }
 
@@ -1064,6 +1075,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
     showAppearanceMenu,
     showTocDrawer,
     synthesisModalOpen,
+    mindmapModalOpen,
     readViewMode,
     totalPages,
     selectedDocId,
@@ -3091,10 +3103,63 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     点击右上角「一键生成」，AI 将自动提炼本文档的
                     {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : '核心关键知识点'}
                   </p>
+                  {mode === 'outline' && (docContent?.toc?.length || 0) > 0 && (
+                    <button
+                      onClick={() => setMindmapModalOpen(true)}
+                      className="mt-2 px-3 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border border-purple-500/20 text-xs font-semibold flex items-center space-x-1.5 active:scale-95 transition"
+                    >
+                      <Brain className="w-3.5 h-3.5" />
+                      <span>查看原生目录思维脑图</span>
+                    </button>
+                  )}
                 </div>
               )
             ) : (
               <div className="select-text cursor-text">
+                {/* 思维大纲专享：脑图视图切换与全屏画布触发栏 */}
+                {mode === 'outline' && (
+                  <div className="mb-3 p-2.5 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-transparent dark:from-purple-950/30 dark:via-indigo-950/20 dark:to-transparent border border-purple-500/20 flex items-center justify-between select-none">
+                    <div className="flex items-center space-x-2 text-xs font-bold text-purple-700 dark:text-purple-300">
+                      <Brain className="w-4 h-4 text-purple-600 dark:text-purple-400" />
+                      <span>思维脑图视图</span>
+                    </div>
+
+                    <div className="flex items-center space-x-1.5">
+                      <div className="flex items-center bg-black/5 dark:bg-white/10 p-0.5 rounded-xl border border-black/5 dark:border-white/10">
+                        <button
+                          onClick={() => setOutlineSubView('list')}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition ${
+                            outlineSubView === 'list'
+                              ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-300 shadow-2xs'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
+                          }`}
+                        >
+                          列表
+                        </button>
+                        <button
+                          onClick={() => setOutlineSubView('tree')}
+                          className={`px-2 py-0.5 rounded-lg text-[10px] font-semibold transition ${
+                            outlineSubView === 'tree'
+                              ? 'bg-white dark:bg-zinc-800 text-purple-600 dark:text-purple-300 shadow-2xs'
+                              : 'text-zinc-500 hover:text-zinc-800 dark:text-zinc-400'
+                          }`}
+                        >
+                          脑图
+                        </button>
+                      </div>
+
+                      <button
+                        onClick={() => setMindmapModalOpen(true)}
+                        className="flex items-center space-x-1 px-2.5 py-1 rounded-xl text-[11px] font-semibold bg-purple-600 hover:bg-purple-700 active:scale-95 text-white transition shadow-xs"
+                        title="开启全屏交互式思维脑图画布"
+                      >
+                        <Maximize2 className="w-3 h-3" />
+                        <span>全屏脑图</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
                 {annotations.length > 0 && (
                   <div
                     onClick={() => setMode('notes')}
@@ -3114,16 +3179,34 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                     </span>
                   </div>
                 )}
-                <CustomMarkdownRenderer
-                  content={summaries[mode]}
-                  themeStyles={themeStyles}
-                  annotations={annotations}
-                  onAnnoClick={(a) => {
-                    setActiveAnnotation(a)
-                    setEditingNoteText(a.note || '')
-                  }}
-                  pulsingAnnoId={pulsingAnnoId}
-                />
+                {mode === 'outline' && outlineSubView === 'tree' ? (
+                  <div className="h-[460px] w-full rounded-2xl overflow-hidden my-2 shadow-xs">
+                    <MindmapModal
+                      isOpen={true}
+                      isInline={true}
+                      docTitle={docContent?.name || ''}
+                      markdownOutline={summaries['outline']}
+                      toc={docContent?.toc}
+                      pages={docContent?.pages}
+                      onNavigateToPage={(p) => {
+                        setCurrentPageIdx(p)
+                        leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+                      }}
+                      onClose={() => {}}
+                    />
+                  </div>
+                ) : (
+                  <CustomMarkdownRenderer
+                    content={summaries[mode]}
+                    themeStyles={themeStyles}
+                    annotations={annotations}
+                    onAnnoClick={(a) => {
+                      setActiveAnnotation(a)
+                      setEditingNoteText(a.note || '')
+                    }}
+                    pulsingAnnoId={pulsingAnnoId}
+                  />
+                )}
                 {generating && (
                   <span className="inline-block w-1.5 h-4 ml-1 bg-purple-500 animate-pulse rounded-full align-middle" />
                 )}
@@ -3657,6 +3740,20 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           </div>
         </div>
       )}
+
+      {/* 8. 全屏沉浸思维脑图画布模态窗 */}
+      <MindmapModal
+        isOpen={mindmapModalOpen}
+        onClose={() => setMindmapModalOpen(false)}
+        docTitle={docContent?.name || ''}
+        markdownOutline={summaries['outline']}
+        toc={docContent?.toc}
+        pages={docContent?.pages}
+        onNavigateToPage={(p) => {
+          setCurrentPageIdx(p)
+          leftContentRef.current?.scrollTo({ top: 0, behavior: 'smooth' })
+        }}
+      />
 
       {/* 底部轻量提示 Toast */}
       {toastMsg && (
