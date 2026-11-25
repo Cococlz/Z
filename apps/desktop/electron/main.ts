@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, dialog, Menu } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, Menu, shell } from 'electron'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, ChildProcess } from 'node:child_process'
@@ -309,6 +309,15 @@ function createWindow() {
 
   win.on('resize', queueSaveBounds)
   win.on('move', queueSaveBounds)
+
+  // 将所有外部 http/https 链接交给系统默认浏览器打开（如 API 申请官网、Ollama 官网）
+  win.webContents.setWindowOpenHandler(({ url }) => {
+    if (url.startsWith('http://') || url.startsWith('https://')) {
+      shell.openExternal(url)
+      return { action: 'deny' }
+    }
+    return { action: 'allow' }
+  })
 }
 
 // IPC Handlers

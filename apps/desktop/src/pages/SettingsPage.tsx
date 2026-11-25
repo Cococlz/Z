@@ -496,7 +496,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                   </div>
                 )}
                 {provider !== 'ollama' && (
-                  <div className="pt-2">
+                  <div className="pt-2 space-y-2.5">
                     <input
                       type="password"
                       placeholder={isConfigured ? '输入新 Key 覆盖现存密钥...' : 'sk-...'}
@@ -504,6 +504,48 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                       onChange={(e) => setApiKey(e.target.value)}
                       className="w-full px-3.5 py-2 text-sm bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200/80 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all placeholder:text-zinc-400 text-zinc-800 dark:text-zinc-100"
                     />
+                    <div className="p-3 rounded-xl bg-blue-50/70 dark:bg-blue-950/20 border border-blue-200/60 dark:border-blue-800/30 text-xs text-zinc-600 dark:text-zinc-300 space-y-1.5">
+                      <div className="font-semibold text-blue-700 dark:text-blue-300 flex items-center justify-between">
+                        <span>🔑 1 分钟获取并接入 Key 教程</span>
+                        {provider === 'deepseek' ? (
+                          <a
+                            href="https://platform.deepseek.com/api_keys"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 no-underline font-medium"
+                          >
+                            打开 DeepSeek 控制台 →
+                          </a>
+                        ) : provider === 'siliconflow' ? (
+                          <a
+                            href="https://cloud.siliconflow.cn/account/ak"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[11px] px-2 py-0.5 rounded-md bg-blue-600 text-white hover:bg-blue-700 no-underline font-medium"
+                          >
+                            打开硅基流动领免费额度 →
+                          </a>
+                        ) : null}
+                      </div>
+                      {provider === 'deepseek' ? (
+                        <ol className="list-decimal list-inside space-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                          <li>点击右上角打开 DeepSeek 官网注册并登录（支持微信扫码）；</li>
+                          <li>点左侧「充值」充 <b>5~10 元</b>（读一本 20 万字书仅需约 3 毛钱，可用很久）；</li>
+                          <li>点左侧「API keys」→「创建 API key」，复制 <code className="font-mono">sk-</code> 开头的密钥粘进上方输入框；</li>
+                          <li>点下方<b>「测试连通性」</b>变绿后，点蓝色<b>「保存模型配置」</b>即大功告成！</li>
+                        </ol>
+                      ) : provider === 'siliconflow' ? (
+                        <ol className="list-decimal list-inside space-y-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+                          <li>点击右上角打开硅基流动注册（新用户通常自带免费体验额度）；</li>
+                          <li>进入「API 密钥」页面 → 点击「新建 API 密钥」并复制；</li>
+                          <li>粘贴到上方输入框，点下方<b>「测试连通性」</b>→<b>「保存模型配置」</b>即可使用！</li>
+                        </ol>
+                      ) : (
+                        <div className="text-[11px] text-zinc-500 dark:text-zinc-400">
+                          填入第三方 OpenAI 兼容平台的 API Key 与 Base URL，点击下方「测试连通性」通过后保存即可。
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>

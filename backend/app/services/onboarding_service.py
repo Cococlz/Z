@@ -31,10 +31,15 @@ ONBOARDING_CONTENT = """# 光笺 (Lumen) · 3 分钟新手上手指南
 
 刚打开软件时，先点左侧最下面的 **「偏好设置」**，选一种适合你的大脑：
 
-### 方式一：使用 DeepSeek（🌟 最推荐 · 充 10 块钱能用半年）
-1. 去 DeepSeek 官网（`platform.deepseek.com`）注册并创建一个 API Key（格式为 `sk-xxx`）；
-2. 回到光笺 **「偏好设置」**，厂商保持 **DeepSeek 官方**，把密钥粘进去；
-3. 点击 **「测试连通性」**（看到绿色延迟提示就成功啦），再点右边蓝色 **「保存模型配置」**！
+### 方式一：使用 DeepSeek（🌟 最推荐 · 充 5~10 块钱能用半年）
+1. 打开 DeepSeek 开放平台官网：[https://platform.deepseek.com/api_keys](https://platform.deepseek.com/api_keys)（支持微信/手机号一键登录）；
+2. 在左侧菜单点击 **「充值」**，先充 **¥5 ~ ¥10 元**（读完一本 20 万字的书只需约 3 毛钱，极度划算）；
+3. 再点击左侧 **「API keys」** $\rightarrow$ **「创建 API key」**，复制生成的那串以 `sk-` 开头的密钥（只显示一次，请立即复制）；
+4. 回到光笺 **「偏好设置」**，厂商保持 **DeepSeek 官方**，把密钥粘贴进去；
+5. 点击 **「测试连通性」**（看到绿色延迟提示就成功啦），最后点右边蓝色 **「保存模型配置」**！
+
+> 🎁 **想先白嫖免费额度试用？**  
+> 在光笺「偏好设置」里把厂商选为 **「硅基流动 SiliconFlow」**，前往 [https://cloud.siliconflow.cn/account/ak](https://cloud.siliconflow.cn/account/ak) 注册即可免费获赠体验额度，新建密钥粘贴进来就能直接用！
 
 ### 方式二：纯离线免费模型（适合完全断网 / 绝密文档）
 1. 如果你懂一点电脑操作，可以在电脑上安装免费的 **Ollama** 软件（`ollama.com`），并下载一个模型（比如在终端运行 `ollama run qwen2.5:7b`）；
