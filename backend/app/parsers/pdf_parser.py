@@ -52,31 +52,30 @@ class PDFParser(BaseParser):
     supported_extensions = ("pdf",)
 
     def parse(self, path: Path) -> ParsedDocument:
-        doc = pymupdf.open(str(path))
         pages: list[ParsedPage] = []
         total_chars = 0
 
-        for page_index in range(len(doc)):
-            page = doc[page_index]
-            raw_text = page.get_text("text")          # plain text, layout-aware
-            clean = _clean_text(raw_text)
-            if not clean:
-                continue
+        with pymupdf.open(str(path)) as doc:
+            page_count = len(doc)
+            for page_index in range(page_count):
+                page = doc[page_index]
+                raw_text = page.get_text("text")          # plain text, layout-aware
+                clean = _clean_text(raw_text)
+                if not clean:
+                    continue
 
-            section_title = _detect_section_title(clean)
-            total_chars += len(clean)
-            pages.append(ParsedPage(
-                page_number=page_index + 1,
-                section_title=section_title,
-                text=clean,
-            ))
-
-        doc.close()
+                section_title = _detect_section_title(clean)
+                total_chars += len(clean)
+                pages.append(ParsedPage(
+                    page_number=page_index + 1,
+                    section_title=section_title,
+                    text=clean,
+                ))
 
         return ParsedDocument(
             name=path.name,
             file_type="pdf",
-            page_count=len(doc),
+            page_count=page_count,
             char_count=total_chars,
             pages=pages,
         )
