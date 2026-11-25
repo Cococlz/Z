@@ -80,11 +80,11 @@ class DeepSeekProvider(BaseLLMProvider):
                 error_msg = f"模型不存在或 Base URL 路径错误: {self._model}"
             elif "ConnectTimeout" in type(e).__name__ or "timed out" in err_str.lower():
                 error_msg = "连接大模型服务超时，请检查网络或本地 Ollama 是否启动"
-            elif "ConnectError" in type(e).__name__ or "Connection refused" in err_str:
+            elif "APIConnectionError" in type(e).__name__ or "ConnectError" in type(e).__name__ or "Connection refused" in err_str or "Connection error" in err_str:
                 if "11434" in str(self._client.base_url):
-                    error_msg = "无法连接至本地 Ollama，请确认是否已安装并启动 Ollama 服务 (如在终端运行 ollama serve)"
+                    error_msg = "未检测到本地 Ollama 运行，请先安装并启动 Ollama (ollama.com)"
                 else:
-                    error_msg = "无法连接至 Base URL，请检查网络或是否需要代理"
+                    error_msg = "无法连接至 Base URL，请检查网络或代理设置"
             else:
                 error_msg = f"{type(e).__name__}: {err_str[:120]}"
             return {"ok": False, "latency_ms": -1, "model": "", "error": error_msg}

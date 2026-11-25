@@ -203,15 +203,36 @@ async def test_model_connection(req: TestConnectionRequest, db: Session = Depend
     return result
 
 
+@router.get("/ollama/status")
+async def get_ollama_status():
+    """自动探测本地 Ollama 服务运行状态及已安装模型列表"""
+    import httpx
+    try:
+        async with httpx.AsyncClient(timeout=1.5) as client:
+            resp = await client.get("http://127.0.0.1:11434/api/tags")
+            if resp.status_code == 200:
+                data = resp.json()
+                models = [m.get("name", "") for m in data.get("models", []) if m.get("name")]
+                return {"running": True, "models": models}
+    except Exception:
+        pass
+    return {"running": False, "models": []}
+
+
 @router.post("/storage/open-in-finder")
 def open_in_finder():
-    """在 macOS Finder 中打开数据根目录"""
+    """在系统文件管理器中打开数据根目录（兼容 macOS Finder 与 Windows 资源管理器）"""
+    import os
     app_data_path = settings.APP_DATA_DIR
     settings.ensure_directories()
-    if platform.system() == "Darwin":
+    sys_name = platform.system()
+    if sys_name == "Darwin":
         subprocess.run(["open", str(app_data_path)], check=False)
         return {"ok": True, "path": str(app_data_path)}
-    return {"ok": False, "error": "当前操作系统非 macOS"}
+    elif sys_name == "Windows":
+        os.startfile(str(app_data_path))  # type: ignore[attr-defined]
+        return {"ok": True, "path": str(app_data_path)}
+    return {"ok": False, "error": f"暂不支持自动打开的操作系统: {sys_name}"}
 
 
 @router.post("/storage/clear-cache")

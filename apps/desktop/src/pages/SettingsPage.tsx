@@ -114,6 +114,12 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
   const [testResult, setTestResult] = useState<{ ok: boolean; latency_ms?: number; error?: string } | null>(null)
   const [toastMessage, setToastMessage] = useState<string | null>(null)
   const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [ollamaStatus, setOllamaStatus] = useState<{ running: boolean; models: string[]; checking: boolean }>({
+    running: false,
+    models: [],
+    checking: false,
+  })
+  const [copiedCmd, setCopiedCmd] = useState(false)
 
   // 3. FAQ 折叠状态
   const [expandedFaq, setExpandedFaq] = useState<number | null>(null)
@@ -148,9 +154,34 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
     }
   }
 
+  const checkOllamaStatus = async () => {
+    if (!backendUrl) return
+    setOllamaStatus((prev) => ({ ...prev, checking: true }))
+    try {
+      const resp = await fetch(`${backendUrl}/api/v1/settings/ollama/status`)
+      if (resp.ok) {
+        const data = await resp.json()
+        setOllamaStatus({ running: !!data.running, models: data.models || [], checking: false })
+        if (data.running && data.models?.length > 0 && !data.models.includes(model)) {
+          setModel(data.models[0])
+        }
+        return
+      }
+    } catch {
+      // ignore
+    }
+    setOllamaStatus({ running: false, models: [], checking: false })
+  }
+
   useEffect(() => {
     loadOverview()
   }, [backendUrl])
+
+  useEffect(() => {
+    if (provider === 'ollama' && backendUrl) {
+      checkOllamaStatus()
+    }
+  }, [provider, backendUrl])
 
   // 切换厂商预设时自动同步默认参数
   const handleSelectProvider = (newProv: string) => {
@@ -248,7 +279,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
         method: 'POST',
       })
       if (resp.ok) {
-        showToast('已在 Finder 中打开数据目录')
+        showToast(systemInfo?.is_macos === false ? '已在资源管理器中打开数据目录' : '已在 Finder 中打开数据目录')
       }
     } catch (e) {
       console.error(e)
@@ -394,6 +425,76 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                     ? 'Ollama 本地无需 API Key，只要本地安装并运行即可'
                     : '密钥仅保存在本地 SQLite 中，绝不上传到任何三方云端'}
                 </p>
+                {provider === 'ollama' && (
+                  <div className="mt-3 p-3.5 rounded-xl bg-zinc-50 dark:bg-white/[0.04] border border-zinc-200/70 dark:border-white/[0.08] space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center space-x-2">
+                        <span
+                          className={`w-2 h-2 rounded-full ${
+                            ollamaStatus.checking
+                              ? 'bg-amber-400 animate-pulse'
+                              : ollamaStatus.running
+                              ? 'bg-emerald-500'
+                              : 'bg-rose-500'
+                          }`}
+                        />
+                        <span className="text-xs font-semibold text-zinc-800 dark:text-zinc-100">
+                          {ollamaStatus.checking
+                            ? '正在检测本机 Ollama 服务...'
+                            : ollamaStatus.running
+                            ? `本机 Ollama 已就绪（检测到 ${ollamaStatus.models.length} 个本地模型）`
+                            : '未检测到本机运行的 Ollama 服务'}
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={checkOllamaStatus}
+                        disabled={ollamaStatus.checking}
+                        className="px-2.5 py-1 text-[11px] font-medium rounded-lg bg-white dark:bg-white/10 border border-zinc-200 dark:border-white/10 text-zinc-600 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-white/15 transition-all flex items-center space-x-1"
+                      >
+                        <RefreshCw className={`w-3 h-3 ${ollamaStatus.checking ? 'animate-spin' : ''}`} />
+                        <span>重新检测</span>
+                      </button>
+                    </div>
+
+                    {!ollamaStatus.checking && !ollamaStatus.running && (
+                      <div className="text-xs text-zinc-500 dark:text-zinc-400 space-y-2 pt-1 border-t border-zinc-200/60 dark:border-white/[0.06]">
+                        <div className="font-medium text-zinc-700 dark:text-zinc-200">小白两步开启纯离线：</div>
+                        <div>
+                          1. 前往{' '}
+                          <a
+                            href="https://ollama.com/download"
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-blue-600 dark:text-blue-400 underline font-medium"
+                          >
+                            ollama.com
+                          </a>{' '}
+                          下载安装 Ollama（像普通软件一样双击安装并打开）。
+                        </div>
+                        <div className="flex items-center justify-between gap-2 bg-zinc-100 dark:bg-black/30 px-2.5 py-1.5 rounded-lg">
+                          <span className="truncate">
+                            2. 在电脑终端运行：<code className="font-mono text-zinc-800 dark:text-zinc-200">ollama run qwen2.5:7b</code>
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              navigator.clipboard?.writeText('ollama run qwen2.5:7b')
+                              setCopiedCmd(true)
+                              setTimeout(() => setCopiedCmd(false), 1800)
+                            }}
+                            className="px-2 py-0.5 rounded bg-blue-600 text-white text-[10px] font-medium shrink-0 hover:bg-blue-700"
+                          >
+                            {copiedCmd ? '已复制' : '复制命令'}
+                          </button>
+                        </div>
+                        <div className="text-[11px] text-amber-600 dark:text-amber-400/90">
+                          💡 不想在本地装模型？上方「服务厂商」改选 <b>DeepSeek 官方</b> 即可免装即用（约 ¥0.3 读完一本书）。
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {provider !== 'ollama' && (
                   <div className="pt-2">
                     <input
@@ -425,7 +526,21 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                   </div>
                 </div>
                 <div className="w-56">
-                  {PROVIDER_PRESETS[provider]?.models.length > 0 ? (
+                  {provider === 'ollama' && ollamaStatus.models.length > 0 ? (
+                    <div className="space-y-1">
+                      <select
+                        value={model}
+                        onChange={(e) => setModel(e.target.value)}
+                        className="w-full px-3 py-1.5 text-xs font-medium bg-zinc-50 dark:bg-[#2C2C2E] border border-zinc-200 dark:border-white/[0.08] rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 text-zinc-700 dark:text-zinc-100"
+                      >
+                        {Array.from(new Set([...ollamaStatus.models, ...PROVIDER_PRESETS.ollama.models])).map((m) => (
+                          <option key={m} value={m} className="dark:bg-[#2C2C2E]">
+                            {ollamaStatus.models.includes(m) ? `${m} (本机已安装)` : m}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : PROVIDER_PRESETS[provider]?.models.length > 0 ? (
                     <div className="space-y-1">
                       <select
                         value={model}
@@ -612,7 +727,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
                 className="px-3 py-1 bg-white dark:bg-white/10 border border-zinc-200 dark:border-white/10 rounded-lg font-sans font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-white/15 active:scale-95 transition-all text-xs shrink-0 flex items-center space-x-1 shadow-2xs"
               >
                 <FolderOpen className="w-3.5 h-3.5" />
-                <span>在 Finder 中打开</span>
+                <span>{systemInfo?.is_macos === false ? '在文件夹中打开' : '在 Finder 中打开'}</span>
               </button>
             </div>
 
