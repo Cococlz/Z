@@ -72,7 +72,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
     {
       id: 'welcome',
       role: 'assistant',
-      content: '你好！我是**智阅 AI** 智能知识助手。\n\n你可以随时向我提问，我会基于你已导入的本地文档知识库进行检索并精准回答，每一条回答都会给出具体的可溯源引用段落与页码。',
+      content: '你好！我是**光笺 (Lumen)** 智能知识助手。\n\n你可以随时向我提问，我会基于你已导入的本地文档知识库进行检索并精准回答，每一条回答都会给出具体的可溯源引用段落与页码。',
     },
   ])
   const [input, setInput] = useState('')

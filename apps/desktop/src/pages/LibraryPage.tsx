@@ -733,7 +733,7 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = res.filename || '智阅AI_全库读书笔记.md'
+      a.download = res.filename || '光笺_全库读书笔记.md'
       a.click()
       URL.revokeObjectURL(url)
       showToast(`已导出 ${res.total_docs} 篇文档共 ${res.total_notes} 条划线批注！`)
@@ -754,7 +754,7 @@ export default function LibraryPage({ backendUrl: propUrl }: { backendUrl?: stri
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
       a.href = url
-      a.download = res.filename || '智阅AI_选中笔记.md'
+      a.download = res.filename || '光笺_选中笔记.md'
       a.click()
       URL.revokeObjectURL(url)
       showToast(`已导出选中的 ${res.total_docs} 篇文档共 ${res.total_notes} 条笔记！`)

@@ -99,7 +99,7 @@ export const NoApiKeyNotice: React.FC<NoApiKeyNoticeProps> = ({
             尚未配置 AI 文本生成引擎
           </h4>
           <p className="text-xs text-zinc-500 leading-relaxed">
-            智阅 AI 采用 Local-First 架构，文档解析、双视图精读与 {modKeyLabel} 混合检索已 <span className="font-semibold text-emerald-600">100% 本地离线就绪</span>。
+            光笺采用 Local-First 架构，文档解析、双视图精读与 {modKeyLabel} 混合检索已 <span className="font-semibold text-emerald-600">100% 本地离线就绪</span>。
           </p>
         </div>
       </div>

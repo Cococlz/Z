@@ -411,11 +411,11 @@ export const MindmapModal: React.FC<{
       // 绘制水印与标题
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.85)' : '#18181B'
       ctx.font = 'bold 20px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-      ctx.fillText(`《${docTitle}》· 智阅 AI 思维导图`, padding, 60)
+      ctx.fillText(`《${docTitle}》· 光笺思维导图`, padding, 60)
 
       ctx.fillStyle = isDark ? 'rgba(255,255,255,0.4)' : '#71717A'
       ctx.font = '12px -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif'
-      ctx.fillText(`生成于 ${new Date().toLocaleDateString('zh-CN')} · 智阅 AI 本地优先知识工作站`, padding, 85)
+      ctx.fillText(`生成于 ${new Date().toLocaleDateString('zh-CN')} · 光笺 (Lumen) 本地优先知识工作站`, padding, 85)
 
       // 递归绘制连接线与卡片
       const offsetX = padding - 40
@@ -481,7 +481,7 @@ export const MindmapModal: React.FC<{
         const url = URL.createObjectURL(blob)
         const a = document.createElement('a')
         a.href = url
-        a.download = `智阅AI_思维脑图_${docTitle.replace(/\.[^/.]+$/, '')}.png`
+        a.download = `光笺_思维脑图_${docTitle.replace(/\.[^/.]+$/, '')}.png`
         document.body.appendChild(a)
         a.click()
         document.body.removeChild(a)

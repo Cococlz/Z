@@ -185,7 +185,7 @@ export default function App() {
               <Sparkles className="w-4 h-4" />
             </div>
             <div>
-              <div className={`text-sm font-bold tracking-tight ${appStyles.logoText} leading-none`}>智阅 AI</div>
+              <div className={`text-sm font-bold tracking-tight ${appStyles.logoText} leading-none`}>光笺</div>
               <div className={`text-[10px] ${appStyles.logoSubText} mt-1 font-mono`}>v1.0 Local-First</div>
             </div>
           </div>

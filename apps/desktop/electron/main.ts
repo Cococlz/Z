@@ -200,17 +200,17 @@ function setupAppMenu() {
     ...(isMac
       ? [
           {
-            label: '智阅 AI',
+            label: '光笺',
             submenu: [
-              { role: 'about' as const, label: '关于 智阅 AI' },
+              { role: 'about' as const, label: '关于 光笺' },
               { type: 'separator' as const },
               { role: 'services' as const, label: '服务' },
               { type: 'separator' as const },
-              { role: 'hide' as const, label: '隐藏 智阅 AI' },
+              { role: 'hide' as const, label: '隐藏 光笺' },
               { role: 'hideOthers' as const, label: '隐藏其他' },
               { role: 'unhide' as const, label: '显示全部' },
               { type: 'separator' as const },
-              { role: 'quit' as const, label: '退出 智阅 AI' },
+              { role: 'quit' as const, label: '退出 光笺' },
             ],
           },
         ]
@@ -279,7 +279,7 @@ function createWindow() {
   const isMac = process.platform === 'darwin'
   const savedBounds = getSavedBounds()
   win = new BrowserWindow({
-    title: '智阅 AI',
+    title: '光笺',
     width: savedBounds.width,
     height: savedBounds.height,
     x: savedBounds.x,

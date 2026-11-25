@@ -711,11 +711,11 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
             {[
               {
                 q: '如何获取并配置 DeepSeek API Key？',
-                a: '访问 DeepSeek 开放平台（platform.deepseek.com）注册账号，在「API Keys」页面点击创建密钥即可复制。新注册用户通常有免费额度。智阅 AI 将密钥存放在本地 SQLite 中，绝不回传任何第三方。',
+                a: '访问 DeepSeek 开放平台（platform.deepseek.com）注册账号，在「API Keys」页面点击创建密钥即可复制。新注册用户通常有免费额度。光笺将密钥存放在本地 SQLite 中，绝不回传任何第三方。',
               },
               {
                 q: '什么是离线向量计算？会泄露我的私人文档吗？',
-                a: '绝不会。智阅 AI 内置了 BAAI/bge-small-zh-v1.5 离线嵌入模型，当您导入文档时，分块与特征向量计算 100% 在您本地 Mac 芯片上完成，不消耗网络 Token。只有在主动发起提问时，系统才将检索出的最相关片段送至大模型。',
+                a: '绝不会。光笺内置了 BAAI/bge-small-zh-v1.5 离线嵌入模型，当您导入文档时，分块与特征向量计算 100% 在您本地 Mac 芯片上完成，不消耗网络 Token。只有在主动发起提问时，系统才将检索出的最相关片段送至大模型。',
               },
               {
                 q: '如何实现无网络环境下的 100% 纯离线对话？',
@@ -752,7 +752,7 @@ export const SettingsPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: pr
         ───────────────────────────────────────────────────────────────── */}
         <div>
           <div className="px-3 pb-2 text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-            关于智阅 AI 与运行环境
+            关于光笺 (Lumen) 与运行环境
           </div>
 
           <div className="bg-white dark:bg-[#1C1C1E] rounded-2xl shadow-sm border border-black/[0.04] dark:border-white/[0.08] p-5 space-y-3 text-xs text-zinc-600 dark:text-zinc-300 transition-colors">

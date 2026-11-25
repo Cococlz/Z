@@ -14,7 +14,7 @@
   },
   "build": {
     "appId": "com.zhiyue.ai",
-    "productName": "智阅 AI",
+    "productName": "光笺",
     "icon": "build/icon.png",
     "mac": {
       "icon": "build/icon.icns",
@@ -35,7 +35,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "智阅 AI",
+      "shortcutName": "光笺",
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true
     },
