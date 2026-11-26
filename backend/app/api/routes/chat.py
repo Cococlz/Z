@@ -19,12 +19,20 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1/chat", tags=["chat"])
 
-RAG_TOP_K = 5
-SYSTEM_PROMPT = """你是智阅AI的智能文档伴读与问答助手。
-你会收到用户上传文档的相关段落作为参考资料，请基于这些资料回答用户问题。
-你具备多轮追问与上下文理解能力，如果用户的问题指代前文内容，请结合先前的对话与参考资料进行连贯作答。
-如果资料中没有相关信息，请如实告知，不要编造内容。
-回答请使用中文，排版结构清晰，重要概念与代码使用 Markdown 规范标记。"""
+RAG_TOP_K = 8
+SYSTEM_PROMPT = """你是「光笺 (Lumen)」的智能文档伴读与写作审阅助手。
+
+你的双重核心能力：
+1. **深度答疑**：结合参考资料与上下文，精准解答文档中的概念、逻辑与细节疑点。
+2. **写作优化顾问**：当用户询问“文档哪里需要优化 / 怎么修改 / 如何润色 / 逻辑有什么问题”时，请站在资深审稿人的角度，从**结构逻辑、表达精炼度、论据支撑、排版可读性**给出具体可落地的改进建议，并尽量给出**「原句 → 建议改法」**示范。
+
+防拒答与诚实原则：
+- 优先依据参考资料与前文对话作答；若遇到宏观总结、延伸追问或局部检索未命中的情况，请结合文档概览与专业知识给出有价值的分析和建议，并清晰区分「文档原文依据」与「AI 分析建议」，不要生硬回复“无法回答”。
+
+排版与标点铁律（必须严格遵守）：
+1. **强制分区**：回答必须使用清晰的 Markdown 二级/三级标题分块（例如 `### 📌 核心结论`、`### 🔍 分点解析`、`### 💡 优化与延伸建议`，按问题复杂度灵活选用 2~3 个模块），严禁输出密密麻麻的一大段纯文本。
+2. **标点规范与简洁**：严格使用中文全角标点（`，。：；？！`），严禁中英文标点混用；少用破折号、感叹号与多层括号嵌套。
+3. **短句分点**：单句尽量不超过 30 字，避免一逗到底的长难句；超过 3 句话必须拆成带加粗关键词的短列表，句末标点干脆利落。"""
 
 
 class ChatRequest(BaseModel):
@@ -87,8 +95,30 @@ async def _stream_chat(
         ]
         yield f"event: citations\ndata: {json.dumps(citations, ensure_ascii=False)}\n\n"
 
-        # 2. 构造携带历史会话记忆的 messages prompt
+        # 2. 构造携带历史会话记忆与文档全局概览的 messages prompt
         context_parts = []
+        if doc_id:
+            from app.database.models import Summary, DocumentChunk
+            overall_cache = (
+                db.query(Summary)
+                .filter(Summary.document_id == doc_id, Summary.summary_type == "overall")
+                .order_by(Summary.created_at.desc())
+                .first()
+            )
+            if overall_cache and overall_cache.content:
+                context_parts.append(f"[文档全局概览]\n{overall_cache.content[:1200]}")
+            else:
+                lead_chunks = (
+                    db.query(DocumentChunk)
+                    .filter(DocumentChunk.document_id == doc_id)
+                    .order_by(DocumentChunk.chunk_index.asc())
+                    .limit(2)
+                    .all()
+                )
+                if lead_chunks:
+                    lead_text = "\n".join(c.content[:500] for c in lead_chunks)
+                    context_parts.append(f"[文档开篇概览]\n{lead_text}")
+
         for i, h in enumerate(hits, 1):
             title = h.get("section_title") or f"段落 {i}"
             context_parts.append(f"[参考{i}] {title}:\n{h['text']}")

@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react'
 import ReactMarkdown from 'react-markdown'
+import { RichMarkdown, normalizeChinesePunctuation } from '../components/RichMarkdown'
 import {
   BookOpen,
+  Wand2,
   ChevronLeft,
   ChevronRight,
   ChevronDown,
@@ -34,7 +36,7 @@ import { useDocStore } from '../stores/docStore'
 import { NoApiKeyNotice } from '../components/NoApiKeyNotice'
 import { MindmapModal } from '../components/MindmapModal'
 
-type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'notes' | 'chat'
+type SummaryMode = 'overall' | 'outline' | 'keypoints' | 'optimize' | 'notes' | 'chat'
 type ReadViewMode = 'extracted' | 'native'
 export type HighlightColor = 'yellow' | 'green' | 'purple' | 'blue'
 
@@ -159,7 +161,7 @@ interface HighlightTooltipState {
 interface InlineActionResult {
   show: boolean
   title: string
-  action: 'explain' | 'translate' | 'summarize'
+  action: 'explain' | 'translate' | 'summarize' | 'polish'
   selectedText: string
   targetLang?: string
   content: string
@@ -181,6 +183,7 @@ const MODE_TABS: { id: SummaryMode; label: string; icon: React.ReactNode }[] = [
   { id: 'overall', label: '全局摘要', icon: <FileCheck2 className="w-3.5 h-3.5" /> },
   { id: 'outline', label: '思维大纲', icon: <ListTree className="w-3.5 h-3.5" /> },
   { id: 'keypoints', label: '核心要点', icon: <Lightbulb className="w-3.5 h-3.5" /> },
+  { id: 'optimize', label: '优化建议', icon: <Wand2 className="w-3.5 h-3.5" /> },
   { id: 'notes', label: '笔记', icon: <Bookmark className="w-3.5 h-3.5" /> },
   { id: 'chat', label: '即时追问', icon: <MessageSquare className="w-3.5 h-3.5" /> },
 ]
@@ -193,10 +196,11 @@ const CustomMarkdownRenderer: React.FC<{
   onAnnoClick?: (anno: AnnotationItem) => void
   pulsingAnnoId?: string | null
 }> = ({ content, themeStyles, annotations = [], onAnnoClick, pulsingAnnoId }) => {
-  // 语法预处理：确保不论模型输出是否带有 Markdown # 标记，都能呈现鲜明的思维导图层级
+  // 语法预处理：确保不论模型输出是否带有 Markdown # 标记，都能呈现鲜明的思维导图层级，同时规整中文标点
   const processed = useMemo(() => {
     if (!content) return ''
-    const lines = content.split('\n')
+    const cleaned = normalizeChinesePunctuation(content)
+    const lines = cleaned.split('\n')
     const result: string[] = []
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i]
@@ -313,7 +317,7 @@ const CustomMarkdownRenderer: React.FC<{
             const badge = match ? match[1].replace(/[:：]$/, '') : '章节'
             const title = match && match[2] ? match[2] : text
             return (
-              <div className={`mt-5 mb-2.5 pb-2 font-bold text-xs sm:text-sm flex items-center space-x-2 ${themeStyles.mdH2 || ''}`}>
+              <div className={`mt-5 mb-3 px-3 py-2 rounded-xl border border-black/[0.05] dark:border-white/[0.08] bg-black/[0.02] dark:bg-white/[0.03] font-bold text-xs sm:text-[13px] flex items-center space-x-2 ${themeStyles.mdH2 || ''}`}>
                 <span className={`px-2 py-0.5 rounded-md text-[11px] font-bold shrink-0 shadow-2xs ${themeStyles.mdH2Badge || ''}`}>
                   {badge}
                 </span>
@@ -322,13 +326,13 @@ const CustomMarkdownRenderer: React.FC<{
             )
           },
           h3: ({ children }) => (
-            <div className={`mt-3.5 mb-1.5 font-bold text-xs flex items-center space-x-1.5 ${themeStyles.mdH3 || ''}`}>
+            <div className={`mt-4 mb-2 font-bold text-xs flex items-center space-x-1.5 ${themeStyles.mdH3 || ''}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 shrink-0" />
               <span>{highlightNode(children)}</span>
             </div>
           ),
           strong: ({ children }) => (
-            <strong className={`font-bold px-1.5 py-0.5 rounded-md inline-block shadow-2xs ${themeStyles.mdStrong || ''}`}>
+            <strong className={`font-bold px-1 py-0.5 rounded-xs ${themeStyles.mdStrong || ''}`}>
               {highlightNode(children)}
             </strong>
           ),
@@ -338,28 +342,28 @@ const CustomMarkdownRenderer: React.FC<{
             </code>
           ),
           ul: ({ children }) => (
-            <ul className="space-y-1.5 my-2 pl-2.5 border-l-2 border-black/[0.06] dark:border-white/[0.08]">
+            <ul className="space-y-2 my-2.5 pl-3 border-l-2 border-purple-500/20 dark:border-purple-400/20">
               {children}
             </ul>
           ),
           ol: ({ children }) => (
-            <ol className="space-y-1.5 my-2 pl-4 list-decimal">
+            <ol className="space-y-2 my-2.5 pl-4 list-decimal">
               {children}
             </ol>
           ),
           li: ({ children }) => (
-            <li className={`text-xs leading-relaxed flex items-start space-x-2 my-1 ${themeStyles.mdLi || ''}`}>
-              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-1.5 shadow-2xs ${themeStyles.mdBullet || 'bg-purple-500'}`} />
+            <li className={`text-[12.5px] leading-[1.75] flex items-start space-x-2 my-1 ${themeStyles.mdLi || ''}`}>
+              <span className={`w-1.5 h-1.5 rounded-full shrink-0 mt-2 shadow-2xs ${themeStyles.mdBullet || 'bg-purple-500'}`} />
               <div className="flex-1 min-w-0">{highlightNode(children)}</div>
             </li>
           ),
           p: ({ children }) => (
-            <p className="text-xs leading-relaxed my-1.5">
+            <p className="text-[12.5px] leading-[1.75] my-2">
               {highlightNode(children)}
             </p>
           ),
           blockquote: ({ children }) => (
-            <blockquote className="border-l-2 border-purple-400 pl-3 py-1 my-2 text-xs italic opacity-85">
+            <blockquote className="border-l-[3px] border-purple-500 bg-purple-500/[0.06] dark:bg-purple-500/[0.08] rounded-r-xl pl-3 pr-3 py-2 my-2.5 text-xs leading-relaxed opacity-90">
               {highlightNode(children)}
             </blockquote>
           ),
@@ -601,7 +605,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
   const DEFAULT_COMPANION_MSG: CompanionChatMessage = {
     id: 'init',
     role: 'assistant',
-    content: '你好！我是您的**专属伴读 AI 助手**。\n\n针对当前正在阅读的文档，您有任何疑问、想深入探究原理或查看实际代码实现，欢迎在此随时向我追问。',
+    content: '你好！我是你的**专属伴读 AI 助手**。\n\n你可以随时问我文档里的疑点，也可以直接让我**审阅这篇文档、指出逻辑或表达上的不足并给出修改建议**。',
   }
 
   const [companionMessages, setCompanionMessages] = useState<CompanionChatMessage[]>([DEFAULT_COMPANION_MSG])
@@ -1655,7 +1659,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
 
   // 触发划词 AI 动作 (explain / translate / summarize)
   const triggerInlineAction = async (
-    action: 'explain' | 'translate' | 'summarize',
+    action: 'explain' | 'translate' | 'summarize' | 'polish',
     overrideLang?: string,
     overrideText?: string
   ) => {
@@ -1667,6 +1671,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
       explain: '💡 深度原理解读',
       translate: '🌐 语境互译',
       summarize: '📝 核心速览',
+      polish: '✨ 润色与优化建议',
     }
 
     if (isLlmUnconfigured) {
@@ -3098,9 +3103,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                         }`}
                       >
                         {msg.role === 'assistant' ? (
-                          <div className="prose prose-xs max-w-none dark:prose-invert">
-                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                          </div>
+                          <RichMarkdown content={msg.content} variant="compact" />
                         ) : (
                           <p className="whitespace-pre-wrap">{msg.content}</p>
                         )}
@@ -3215,7 +3218,7 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
                   </div>
                   <p className="text-xs max-w-[240px]">
                     点击右上角「一键生成」，AI 将自动提炼本文档的
-                    {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : '核心关键知识点'}
+                    {mode === 'overall' ? '全局综合摘要' : mode === 'outline' ? '思维大纲' : mode === 'optimize' ? '写作审阅与优化建议' : '核心关键知识点'}
                   </p>
                   {mode === 'outline' && (docContent?.toc?.length || 0) > 0 && (
                     <button
@@ -3407,6 +3410,17 @@ export const ReaderPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: prop
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>要点</span>
+          </button>
+
+          <span className="w-px h-3 bg-white/20" />
+
+          <button
+            onClick={() => triggerInlineAction('polish')}
+            className="flex items-center space-x-1 px-2.5 py-1 rounded-full text-xs hover:bg-white/15 active:scale-95 transition-all text-pink-300 font-medium"
+            title="诊断不足并给出优化改写建议"
+          >
+            <Wand2 className="w-3.5 h-3.5" />
+            <span>润色</span>
           </button>
 
           <span className="w-px h-3 bg-white/20" />

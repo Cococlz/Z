@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
-import ReactMarkdown from 'react-markdown'
+import { RichMarkdown } from '../components/RichMarkdown'
 import {
   Send,
   Sparkles,
@@ -494,9 +494,7 @@ export const ChatPage: React.FC<{ backendUrl?: string }> = ({ backendUrl: propUr
                         onActionSuccess={() => fetchLlmConfig()}
                       />
                     ) : (
-                      <div className="prose prose-sm max-w-none prose-zinc dark:prose-invert text-zinc-800 dark:text-zinc-100">
-                        <ReactMarkdown>{msg.content}</ReactMarkdown>
-                      </div>
+                      <RichMarkdown content={msg.content} variant="chat" />
                     )}
                     {msg.isStreaming && (
                       <span className="inline-block w-1.5 h-4 ml-1 bg-blue-500 animate-pulse rounded-full align-middle" />

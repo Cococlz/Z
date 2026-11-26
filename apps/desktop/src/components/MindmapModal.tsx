@@ -7,7 +7,14 @@ import {
   RotateCcw,
   X,
   ExternalLink,
+  LayoutGrid,
+  GitFork,
+  ArrowDownUp,
+  Palette,
 } from 'lucide-react'
+
+type MindmapTemplate = 'horizontal' | 'vertical' | 'cards'
+type MindmapTheme = 'vibrant' | 'business' | 'academic'
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -177,7 +184,71 @@ export function parseToMindmapTree(
   return root
 }
 
+const THEME_PALETTES: Record<MindmapTheme, typeof BRANCH_COLORS> = {
+  vibrant: BRANCH_COLORS,
+  business: [
+    { stroke: '#2563EB', bg: 'bg-blue-500/10', border: 'border-blue-500/35', text: 'text-blue-600 dark:text-blue-300', dot: 'bg-blue-600' },
+    { stroke: '#4F46E5', bg: 'bg-indigo-500/10', border: 'border-indigo-500/35', text: 'text-indigo-600 dark:text-indigo-300', dot: 'bg-indigo-600' },
+    { stroke: '#0EA5E9', bg: 'bg-sky-500/10', border: 'border-sky-500/35', text: 'text-sky-600 dark:text-sky-300', dot: 'bg-sky-500' },
+    { stroke: '#6366F1', bg: 'bg-indigo-500/10', border: 'border-indigo-400/35', text: 'text-indigo-600 dark:text-indigo-300', dot: 'bg-indigo-500' },
+  ],
+  academic: [
+    { stroke: '#059669', bg: 'bg-emerald-500/10', border: 'border-emerald-600/30', text: 'text-emerald-700 dark:text-emerald-300', dot: 'bg-emerald-600' },
+    { stroke: '#475569', bg: 'bg-slate-500/10', border: 'border-slate-500/30', text: 'text-slate-700 dark:text-slate-300', dot: 'bg-slate-600' },
+    { stroke: '#0D9488', bg: 'bg-teal-500/10', border: 'border-teal-600/30', text: 'text-teal-700 dark:text-teal-300', dot: 'bg-teal-600' },
+    { stroke: '#64748B', bg: 'bg-slate-500/10', border: 'border-slate-400/30', text: 'text-slate-600 dark:text-slate-300', dot: 'bg-slate-500' },
+  ],
+}
+
 // ── Tree Layout Calculation ──────────────────────────────────────────────────
+
+function computeVerticalTreeLayout(
+  node: MindmapNode,
+  collapsedSet: Set<string>,
+  startX: number,
+  startY: number
+): { layout: LayoutNode; height: number; width: number } {
+  const isRoot = node.level === 0
+  const width = isRoot
+    ? Math.max(180, Math.min(280, node.title.length * 14 + 50))
+    : Math.max(135, Math.min(200, node.title.length * 12 + 36))
+  const height = isRoot ? 48 : 38
+
+  const isCollapsed = collapsedSet.has(node.id)
+  const effectiveChildren = isCollapsed ? [] : node.children
+
+  if (effectiveChildren.length === 0) {
+    return {
+      layout: { ...node, x: startX, y: startY, width, height, children: [] },
+      height,
+      width,
+    }
+  }
+
+  const childY = startY + height + 64
+  let currentX = startX
+  const childrenLayouts: LayoutNode[] = []
+  let totalChildWidth = 0
+  let maxChildHeight = 0
+
+  effectiveChildren.forEach((child, idx) => {
+    const res = computeVerticalTreeLayout(child, collapsedSet, currentX, childY)
+    childrenLayouts.push(res.layout)
+    currentX += res.width + 24
+    totalChildWidth += res.width + (idx > 0 ? 24 : 0)
+    maxChildHeight = Math.max(maxChildHeight, res.height)
+  })
+
+  const firstChild = childrenLayouts[0]
+  const lastChild = childrenLayouts[childrenLayouts.length - 1]
+  const centerX = (firstChild.x + lastChild.x + lastChild.width) / 2 - width / 2
+
+  return {
+    layout: { ...node, x: centerX, y: startY, width, height, children: childrenLayouts },
+    height: height + 64 + maxChildHeight,
+    width: Math.max(width, totalChildWidth),
+  }
+}
 
 function computeTreeLayout(
   node: MindmapNode,
@@ -287,13 +358,19 @@ export const MindmapModal: React.FC<{
   const [dragStart, setDragStart] = useState({ x: 0, y: 0 })
   const [selectedNode, setSelectedNode] = useState<LayoutNode | null>(null)
   const [exporting, setExporting] = useState(false)
+  const [template, setTemplate] = useState<MindmapTemplate>('horizontal')
+  const [colorTheme, setColorTheme] = useState<MindmapTheme>('vibrant')
 
   const containerRef = useRef<HTMLDivElement>(null)
+  const activePalette = THEME_PALETTES[colorTheme]
 
-  // 计算节点布局
+  // 计算节点布局（支持横向发散 / 纵向架构）
   const { layout: rootLayout, height: totalTreeHeight, width: totalTreeWidth } = useMemo(() => {
+    if (template === 'vertical') {
+      return computeVerticalTreeLayout(rootTree, collapsedSet, 80, 60)
+    }
     return computeTreeLayout(rootTree, collapsedSet, 80, 80)
-  }, [rootTree, collapsedSet])
+  }, [rootTree, collapsedSet, template])
 
   // 重置视角居中：无论多大层级，始终将根节点垂直居中在视野中央
   const handleResetView = () => {
@@ -499,28 +576,39 @@ export const MindmapModal: React.FC<{
 
     const traverse = (node: LayoutNode) => {
       const isRoot = node.level === 0
-      const branchStyle = BRANCH_COLORS[node.branchIndex ?? 0] || BRANCH_COLORS[0]
+      const branchStyle = activePalette[(node.branchIndex ?? 0) % activePalette.length] || activePalette[0]
       const isSelected = selectedNode?.id === node.id
       const hasChildren = node.children.length > 0 || (node as MindmapNode).children?.length > 0
       const isCollapsed = collapsedSet.has(node.id)
 
-      // 1. 连线
+      // 1. 连线（横向或纵向贝塞尔曲线）
       node.children.forEach((child) => {
-        const x1 = node.x + node.width
-        const y1 = node.y + node.height / 2
-        const x2 = child.x
-        const y2 = child.y + child.height / 2
-        const dx = (x2 - x1) * 0.5
-        const childBranch = BRANCH_COLORS[child.branchIndex ?? 0] || BRANCH_COLORS[0]
+        const childBranch = activePalette[(child.branchIndex ?? 0) % activePalette.length] || activePalette[0]
+        let pathD = ''
+        if (template === 'vertical') {
+          const x1 = node.x + node.width / 2
+          const y1 = node.y + node.height
+          const x2 = child.x + child.width / 2
+          const y2 = child.y
+          const dy = (y2 - y1) * 0.5
+          pathD = `M ${x1} ${y1} C ${x1} ${y1 + dy}, ${x2} ${y2 - dy}, ${x2} ${y2}`
+        } else {
+          const x1 = node.x + node.width
+          const y1 = node.y + node.height / 2
+          const x2 = child.x
+          const y2 = child.y + child.height / 2
+          const dx = (x2 - x1) * 0.5
+          pathD = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`
+        }
 
         lines.push(
           <path
             key={`line_${node.id}_${child.id}`}
-            d={`M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`}
+            d={pathD}
             fill="none"
             stroke={childBranch.stroke}
             strokeWidth={child.level === 1 ? 2.5 : 1.8}
-            className="transition-all duration-300 opacity-70 hover:opacity-100"
+            className="transition-all duration-300 opacity-75 hover:opacity-100"
           />
         )
       })
@@ -602,8 +690,137 @@ export const MindmapModal: React.FC<{
 
   const { lines, nodes } = renderTreeElements()
 
+  // 渲染结构化大纲卡片视图
+  const renderCardOutlineNode = (node: MindmapNode, depth = 0) => {
+    const palette = activePalette[(node.branchIndex ?? 0) % activePalette.length] || activePalette[0]
+    const hasChildren = node.children.length > 0
+    const isCollapsed = collapsedSet.has(node.id)
+    return (
+      <div key={`card_${node.id}`} className={depth > 0 ? 'ml-3 pl-3 border-l-2 border-black/[0.06] dark:border-white/[0.08] mt-1.5' : ''}>
+        <div
+          onClick={() => handleNodeClick(node as LayoutNode)}
+          className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-xl hover:bg-black/[0.04] dark:hover:bg-white/[0.06] cursor-pointer transition group"
+        >
+          <div className="flex items-center space-x-2 min-w-0">
+            <span className={`w-1.5 h-1.5 rounded-full shrink-0 ${palette.dot}`} />
+            <span className={`text-xs truncate ${depth === 0 ? 'font-bold text-zinc-900 dark:text-zinc-100' : 'text-zinc-700 dark:text-zinc-300'}`}>
+              {node.title}
+            </span>
+          </div>
+          <div className="flex items-center space-x-1 shrink-0">
+            {node.page_index !== undefined && (
+              <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-black/5 dark:bg-white/10 text-zinc-500 dark:text-zinc-400">
+                P.{node.page_index + 1}
+              </span>
+            )}
+            {hasChildren && (
+              <button
+                onClick={(e) => toggleCollapse(node.id, e)}
+                className="w-4 h-4 rounded-full bg-black/5 dark:bg-white/10 hover:bg-purple-500 hover:text-white flex items-center justify-center text-[10px] text-zinc-400 transition"
+              >
+                {isCollapsed ? '+' : '−'}
+              </button>
+            )}
+          </div>
+        </div>
+        {hasChildren && !isCollapsed && (
+          <div className="space-y-1">{node.children.map((c) => renderCardOutlineNode(c, depth + 1))}</div>
+        )}
+      </div>
+    )
+  }
+
+  // 模板与配色切换栏
+  const templateControls = (
+    <div className="flex items-center space-x-1.5 bg-white/90 dark:bg-zinc-800/90 backdrop-blur-md px-2 py-1 rounded-xl border border-black/[0.06] dark:border-white/[0.1] shadow-sm text-[11px]">
+      <button
+        onClick={() => setTemplate('horizontal')}
+        className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition ${
+          template === 'horizontal' ? 'bg-purple-600 text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10'
+        }`}
+        title="经典横向脑图"
+      >
+        <GitFork className="w-3 h-3" />
+        <span>横向脑图</span>
+      </button>
+      <button
+        onClick={() => setTemplate('vertical')}
+        className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition ${
+          template === 'vertical' ? 'bg-purple-600 text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10'
+        }`}
+        title="纵向架构图"
+      >
+        <ArrowDownUp className="w-3 h-3" />
+        <span>纵向架构</span>
+      </button>
+      <button
+        onClick={() => setTemplate('cards')}
+        className={`flex items-center space-x-1 px-2 py-1 rounded-lg font-medium transition ${
+          template === 'cards' ? 'bg-purple-600 text-white' : 'text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10'
+        }`}
+        title="结构化大纲卡片"
+      >
+        <LayoutGrid className="w-3 h-3" />
+        <span>大纲卡片</span>
+      </button>
+      <div className="w-px h-3.5 bg-black/10 dark:bg-white/10 mx-0.5" />
+      <button
+        onClick={() =>
+          setColorTheme((prev) => (prev === 'vibrant' ? 'business' : prev === 'business' ? 'academic' : 'vibrant'))
+        }
+        className="flex items-center space-x-1 px-2 py-1 rounded-lg text-zinc-600 dark:text-zinc-300 hover:bg-black/5 dark:hover:bg-white/10 transition font-medium"
+        title="切换配色主题"
+      >
+        <Palette className="w-3 h-3 text-purple-500" />
+        <span>{colorTheme === 'vibrant' ? '多彩' : colorTheme === 'business' ? '商务' : '学术'}</span>
+      </button>
+    </div>
+  )
+
   // 内部画布内容
-  const canvasContent = (
+  const canvasContent = template === 'cards' ? (
+    <div className="relative w-full h-full overflow-y-auto p-5 bg-slate-50/50 dark:bg-[#121214] space-y-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="px-3.5 py-2 rounded-2xl bg-gradient-to-r from-purple-600 to-indigo-600 text-white text-xs font-bold shadow-md">
+          {rootTree.title}
+        </div>
+        {templateControls}
+      </div>
+      <div className={`grid gap-3 ${isInline ? 'grid-cols-1' : 'grid-cols-1 md:grid-cols-2 lg:grid-cols-3'}`}>
+        {rootTree.children.map((branch, bIdx) => {
+          const palette = activePalette[bIdx % activePalette.length] || activePalette[0]
+          return (
+            <div
+              key={`branch_card_${branch.id}`}
+              className="rounded-2xl bg-white dark:bg-[#1C1C1E] border border-black/[0.06] dark:border-white/[0.08] p-3.5 shadow-2xs space-y-2"
+            >
+              <div
+                onClick={() => handleNodeClick(branch as LayoutNode)}
+                className="flex items-center justify-between gap-2 pb-2 border-b border-black/[0.05] dark:border-white/[0.06] cursor-pointer"
+              >
+                <div className="flex items-center space-x-2 min-w-0">
+                  <span className={`w-2.5 h-2.5 rounded-full shrink-0 ${palette.dot}`} />
+                  <span className="text-xs font-bold text-zinc-900 dark:text-zinc-100 truncate">{branch.title}</span>
+                </div>
+                {branch.page_index !== undefined && (
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-md bg-purple-500/10 text-purple-600 dark:text-purple-300 shrink-0">
+                    P.{branch.page_index + 1}
+                  </span>
+                )}
+              </div>
+              <div className="space-y-1">
+                {branch.children.length > 0 ? (
+                  branch.children.map((c) => renderCardOutlineNode(c, 1))
+                ) : (
+                  <p className="text-[11px] text-zinc-400 py-1">点击标题直达原文</p>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  ) : (
     <div
       ref={containerRef}
       onMouseDown={handleMouseDown}
@@ -612,6 +829,8 @@ export const MindmapModal: React.FC<{
       onWheel={handleWheel}
       className={`relative w-full h-full overflow-hidden select-none cursor-grab active:cursor-grabbing bg-slate-50/50 dark:bg-[#121214]`}
     >
+      {/* 模板与配色悬浮条 */}
+      <div className="absolute top-3 left-3 z-20">{templateControls}</div>
       {/* 坐标网格底纹 */}
       <div
         className="absolute inset-0 pointer-events-none opacity-[0.03] dark:opacity-[0.05]"
